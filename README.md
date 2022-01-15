@@ -1,2 +1,2 @@
 # sdk
-Go SDK for the RoadRunner
+RoadRunner Go SDK
