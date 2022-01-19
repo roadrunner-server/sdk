@@ -5,12 +5,12 @@
 </p>
 <p align="center">
  <a href="https://packagist.org/packages/spiral/roadrunner"><img src="https://poser.pugx.org/spiral/roadrunner/version"></a>
-	<a href="https://pkg.go.dev/github.com/roadrunner-server/roadrunner/v2?tab=doc"><img src="https://godoc.org/github.com/roadrunner-server/roadrunner/v2?status.svg"></a>
-	<a href="https://github.com/roadrunner-server/roadrunner/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linux/badge.svg" alt=""></a>
-	<a href="https://github.com/roadrunner-server/roadrunner/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linters/badge.svg" alt=""></a>
-	<a href="https://goreportcard.com/report/github.com/roadrunner-server/roadrunner"><img src="https://goreportcard.com/badge/github.com/roadrunner-server/roadrunner"></a>
-	<a href="https://codecov.io/gh/roadrunner-server/roadrunner/"><img src="https://codecov.io/gh/roadrunner-server/roadrunner/branch/master/graph/badge.svg"></a>
-	<a href="https://lgtm.com/projects/g/roadrunner-server/roadrunner/alerts/"><img alt="Total alerts" src="https://img.shields.io/lgtm/alerts/g/roadrunner-server/roadrunner.svg?logo=lgtm&logoWidth=18"/></a>
+	<a href="https://pkg.go.dev/github.com/roadrunner-server/sdk/v2?tab=doc"><img src="https://godoc.org/github.com/roadrunner-server/sdk/v2?status.svg"></a>
+	<a href="https://github.com/roadrunner-server/sdk/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linux/badge.svg" alt=""></a>
+	<a href="https://github.com/roadrunner-server/sdk/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linters/badge.svg" alt=""></a>
+	<a href="https://goreportcard.com/report/github.com/roadrunner-server/sdk"><img src="https://goreportcard.com/badge/github.com/roadrunner-server/sdk"></a>
+	<a href="https://codecov.io/gh/roadrunner-server/sdk"><img src="https://codecov.io/gh/roadrunner-server/sdk/branch/master/graph/badge.svg"></a>
+	<a href="https://lgtm.com/projects/g/roadrunner-server/sdk/alerts/"><img alt="Total alerts" src="https://img.shields.io/lgtm/alerts/g/roadrunner-server/sdk.svg?logo=lgtm&logoWidth=18"/></a>
 	<a href="https://discord.gg/TFeEmCs"><img src="https://img.shields.io/badge/discord-chat-magenta.svg"></a>
 	<a href="https://packagist.org/packages/spiral/roadrunner"><img src="https://img.shields.io/packagist/dd/spiral/roadrunner?style=flat-square"></a>
 </p>
@@ -24,7 +24,7 @@ with much greater performance and flexibility.
 <p align="center">
 	<a href="https://roadrunner.dev/"><b>Official Website</b></a> |
 	<a href="https://roadrunner.dev/docs"><b>Documentation</b></a> |
-    <a href="https://github.com/orgs/spiral/projects/2"><b>Release schedule</b></a>
+    <a href="https://github.com/orgs/roadrunner-server/projects/1"><b>Release schedule</b></a>
 </p>
 
 Features:
