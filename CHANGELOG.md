@@ -1,6 +1,14 @@
 # CHANGELOG
 
-# v2.7.0 (?.?.2022)
+# v2.7.1
+
+## 👀 New:
+
+- ✏️ Parallel workers allocation [FR](https://github.com/roadrunner-server/roadrunner/issues/951) (reported by: @roquie)
+
+---
+
+# v2.7.0 (14.01.2022)
 
 ## 👀 New:
 
