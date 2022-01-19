@@ -13,6 +13,7 @@ import (
 	"github.com/roadrunner-server/sdk/v2/worker"
 	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -281,8 +282,6 @@ func (sp *StaticPool) stopWorker(w worker.BaseProcess) {
 func (sp *StaticPool) checkMaxJobs(w worker.BaseProcess) {
 	if w.State().NumExecs() >= sp.cfg.MaxJobs {
 		w.State().Set(worker.StateMaxJobsReached)
-		sp.ww.Release(w)
-		return
 	}
 
 	sp.ww.Release(w)
@@ -301,23 +300,6 @@ func (sp *StaticPool) takeWorker(ctxGetFree context.Context, op errors.Op) (work
 		return nil, errors.E(op, err)
 	}
 	return w, nil
-}
-
-func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd func() *exec.Cmd) worker.Allocator {
-	return func() (worker.SyncWorker, error) {
-		ctxT, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd())
-		if err != nil {
-			return nil, err
-		}
-
-		// wrap sync worker
-		sw := worker.From(w)
-
-		sp.log.Debug("worker is allocated", zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
-		return sw, nil
-	}
 }
 
 // execDebug used when debug mode was not set and exec_ttl is 0
@@ -375,18 +357,47 @@ func (sp *StaticPool) execDebugWithTTL(ctx context.Context, p *payload.Payload) 
 	return r, err
 }
 
+func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd func() *exec.Cmd) worker.Allocator {
+	return func() (worker.SyncWorker, error) {
+		ctxT, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd())
+		if err != nil {
+			return nil, err
+		}
+
+		// wrap sync worker
+		sw := worker.From(w)
+		sp.log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
+		return sw, nil
+	}
+}
+
 // allocate required number of stack
 func (sp *StaticPool) allocateWorkers(numWorkers uint64) ([]worker.BaseProcess, error) {
-	workers := make([]worker.BaseProcess, 0, numWorkers)
+	const op = errors.Op("static_pool_allocate_workers")
+
+	workers := make([]worker.BaseProcess, numWorkers)
+	eg := new(errgroup.Group)
 
 	// constant number of stack simplify logic
 	for i := uint64(0); i < numWorkers; i++ {
-		w, err := sp.allocator()
-		if err != nil {
-			return nil, errors.E(errors.WorkerAllocate, err)
-		}
+		ii := i
+		eg.Go(func() error {
+			w, err := sp.allocator()
+			if err != nil {
+				return errors.E(op, errors.WorkerAllocate, err)
+			}
 
-		workers = append(workers, w)
+			workers[ii] = w
+			return nil
+		})
 	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
 	return workers, nil
 }
