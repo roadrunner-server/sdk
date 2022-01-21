@@ -1,10 +1,14 @@
 # CHANGELOG
 
-# v2.7.1 (?.?.2022)
+# v2.8.0-rc.1 (21.01.2022)
 
 ## 👀 New:
 
 - ✏️ Parallel workers allocation [FR](https://github.com/roadrunner-server/roadrunner/issues/951) (reported by: @roquie)
+
+## 🩹 Fixes:
+
+- 🐛 Fix: RR workers are blocked when one of them should send a big (> 100mb) response and when time to send the response is bigger than supervisor's `watch_tick` [BUG](https://github.com/roadrunner-server/roadrunner/issues/957) (reported by: @OO00O0O)
 
 ---
 

@@ -6,7 +6,7 @@ require (
 	github.com/goccy/go-json v0.9.4
 	github.com/google/uuid v1.3.0
 	// spiral
-	github.com/roadrunner-server/errors v1.1.0
+	github.com/roadrunner-server/errors v1.1.1
 	github.com/roadrunner-server/goridge/v3 v3.3.0
 	github.com/roadrunner-server/tcplisten v1.1.0
 	// spiral

@@ -51,24 +51,18 @@ func (sp *supervised) execWithTTL(_ context.Context, _ *payload.Payload) (*paylo
 }
 
 func (sp *supervised) Reset(ctx context.Context) error {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	return sp.pool.Reset(ctx)
 }
 
 func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("supervised_exec_with_context")
 	if sp.cfg.ExecTTL == 0 {
-		sp.mu.RLock()
-		defer sp.mu.RUnlock()
 		return sp.pool.Exec(rqs)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sp.cfg.ExecTTL)
 	defer cancel()
 
-	sp.mu.RLock()
-	defer sp.mu.RUnlock()
 	res, err := sp.pool.execWithTTL(ctx, rqs)
 	if err != nil {
 		return nil, errors.E(op, err)
@@ -82,8 +76,6 @@ func (sp *supervised) GetConfig() interface{} {
 }
 
 func (sp *supervised) Workers() (workers []worker.BaseProcess) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	return sp.pool.Workers()
 }
 
@@ -121,7 +113,7 @@ func (sp *supervised) Stop() {
 	sp.stopCh <- struct{}{}
 }
 
-func (sp *supervised) control() { //nolint:gocognit
+func (sp *supervised) control() {
 	now := time.Now()
 
 	// MIGHT BE OUTDATED
@@ -140,6 +132,11 @@ func (sp *supervised) control() { //nolint:gocognit
 			worker.StateStopped,
 			worker.StateStopping,
 			worker.StateKilling:
+
+			// stop the bad worker
+			if workers[i] != nil {
+				_ = workers[i].Stop()
+			}
 			continue
 		}
 
@@ -158,12 +155,6 @@ func (sp *supervised) control() { //nolint:gocognit
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-
-			if workers[i].State().Value() != worker.StateWorking {
-				workers[i].State().Set(worker.StateInvalid)
-				_ = workers[i].Stop()
-			}
-			// just to double check
 			workers[i].State().Set(worker.StateInvalid)
 			sp.log.Debug("ttl", zap.String("reason", "ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			continue
@@ -178,12 +169,6 @@ func (sp *supervised) control() { //nolint:gocognit
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-
-			if workers[i].State().Value() != worker.StateWorking {
-				workers[i].State().Set(worker.StateInvalid)
-				_ = workers[i].Stop()
-			}
-			// just to double check
 			workers[i].State().Set(worker.StateInvalid)
 			sp.log.Debug("memory_limit", zap.String("reason", "max memory is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventMaxMemory.String()))
 			continue
@@ -234,11 +219,6 @@ func (sp *supervised) control() { //nolint:gocognit
 																															-----> Worker Stopped here
 				*/
 
-				if workers[i].State().Value() != worker.StateWorking {
-					workers[i].State().Set(worker.StateInvalid)
-					_ = workers[i].Stop()
-				}
-				// just to double-check
 				workers[i].State().Set(worker.StateInvalid)
 				sp.log.Debug("idle_ttl", zap.String("reason", "idle ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			}

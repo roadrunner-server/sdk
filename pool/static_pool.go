@@ -138,6 +138,9 @@ func (sp *StaticPool) Exec(p *payload.Payload) (*payload.Payload, error) {
 	if sp.cfg.Debug {
 		return sp.execDebug(p)
 	}
+
+	// see notes at the end of the file
+begin:
 	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
 	defer cancel()
 	w, err := sp.takeWorker(ctxGetFree, op)
@@ -147,13 +150,17 @@ func (sp *StaticPool) Exec(p *payload.Payload) (*payload.Payload, error) {
 
 	rsp, err := w.(worker.SyncWorker).Exec(p)
 	if err != nil {
+		if errors.Is(errors.Retry, err) {
+			sp.ww.Release(w)
+			goto begin
+		}
 		return sp.errEncoder(err, w)
 	}
 
 	// worker want's to be terminated
 	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
 		sp.stopWorker(w)
-		return sp.Exec(p)
+		goto begin
 	}
 
 	if sp.cfg.MaxJobs != 0 {
@@ -242,6 +249,8 @@ func (sp *StaticPool) execWithTTL(ctx context.Context, p *payload.Payload) (*pay
 		return sp.execDebugWithTTL(ctx, p)
 	}
 
+	// see notes at the end of the file
+begin:
 	ctxAlloc, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
 	defer cancel()
 	w, err := sp.takeWorker(ctxAlloc, op)
@@ -251,13 +260,17 @@ func (sp *StaticPool) execWithTTL(ctx context.Context, p *payload.Payload) (*pay
 
 	rsp, err := w.(worker.SyncWorker).ExecWithTTL(ctx, p)
 	if err != nil {
+		if errors.Is(errors.Retry, err) {
+			sp.ww.Release(w)
+			goto begin
+		}
 		return sp.errEncoder(err, w)
 	}
 
 	// worker want's to be terminated
 	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
 		sp.stopWorker(w)
-		return sp.execWithTTL(ctx, p)
+		goto begin
 	}
 
 	if sp.cfg.MaxJobs != 0 {
@@ -401,3 +414,56 @@ func (sp *StaticPool) allocateWorkers(numWorkers uint64) ([]worker.BaseProcess, 
 
 	return workers, nil
 }
+
+/*
+Difference between recursion function call vs goto:
+
+RECURSION:
+        0x0000 00000 (main.go:15)       TEXT    "".foo(SB), ABIInternal, $24-16
+        0x0000 00000 (main.go:15)       CMPQ    SP, 16(R14)
+        0x0004 00004 (main.go:15)       JLS     57
+        0x0006 00006 (main.go:15)       SUBQ    $24, SP
+        0x000a 00010 (main.go:15)       MOVQ    BP, 16(SP)
+        0x000f 00015 (main.go:15)       LEAQ    16(SP), BP
+        0x0014 00020 (main.go:16)       CALL    "".foo2(SB)
+        0x0019 00025 (main.go:17)       TESTQ   AX, AX
+        0x001c 00028 (main.go:17)       JEQ     47
+        0x001e 00030 (main.go:18)       LEAQ    go.string."bar"(SB), AX
+        0x0025 00037 (main.go:18)       MOVL    $3, BX
+        0x002a 00042 (main.go:18)       CALL    "".foo(SB)
+        0x002f 00047 (main.go:20)       MOVQ    16(SP), BP
+        0x0034 00052 (main.go:20)       ADDQ    $24, SP
+        0x0038 00056 (main.go:20)       RET
+        0x0039 00057 (main.go:20)       NOP
+        0x0039 00057 (main.go:15)       CALL    runtime.morestack_noctxt(SB)
+        0x003e 00062 (main.go:15)       NOP
+        0x0040 00064 (main.go:15)       JMP     0
+
+GOTO:
+        0x0000 00000 (main.go:15)       TEXT    "".foo(SB), ABIInternal, $8-16
+        0x0000 00000 (main.go:15)       CMPQ    SP, 16(R14)
+        0x0004 00004 (main.go:15)       JLS     37
+        0x0006 00006 (main.go:15)       SUBQ    $8, SP
+        0x000a 00010 (main.go:15)       MOVQ    BP, (SP)
+        0x000e 00014 (main.go:15)       LEAQ    (SP), BP
+        0x0012 00018 (main.go:17)       CALL    "".foo2(SB)
+        0x0017 00023 (main.go:18)       TESTQ   AX, AX
+        0x001a 00026 (main.go:18)       JNE     18
+        0x001c 00028 (main.go:21)       MOVQ    (SP), BP
+        0x0020 00032 (main.go:21)       ADDQ    $8, SP
+        0x0024 00036 (main.go:21)       RET
+        0x0025 00037 (main.go:21)       NOP
+        0x0025 00037 (main.go:15)       CALL    runtime.morestack_noctxt(SB)
+        0x002a 00042 (main.go:15)       JMP     0
+
+The difference:
+1. Stack (24-16 vs 8-16)
+2. JNE vs Direct CALL
+3 TESTQ   AX, AX (if err != nil)
+
+So, the goto is a little bit more performant
+BenchmarkRecursion
+BenchmarkRecursion-32    	378020806	         3.185 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoTo
+BenchmarkGoTo-32         	407569994	         2.930 ns/op	       0 B/op	       0 allocs/op
+*/
