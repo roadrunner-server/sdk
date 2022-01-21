@@ -49,7 +49,7 @@ func (tw *SyncWorkerImpl) Exec(p *payload.Payload) (*payload.Payload, error) {
 	}
 
 	if tw.process.State().Value() != StateReady {
-		return nil, errors.E(op, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
+		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 
 	// set last used time
@@ -97,7 +97,7 @@ func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (
 
 	// worker was killed before it started to work (supervisor)
 	if tw.process.State().Value() != StateReady {
-		return nil, errors.E(op, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
+		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))

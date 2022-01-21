@@ -299,9 +299,10 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 		t.Fatal("should be at least 1 worker")
 		return
 	}
+
 	// should be destroyed, state should be Ready, not Invalid
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
-	assert.Equal(t, int64(1), p.Workers()[0].State().Value())
+	assert.Equal(t, int64(3), p.Workers()[0].State().Value())
 }
 
 func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
