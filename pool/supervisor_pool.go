@@ -113,7 +113,7 @@ func (sp *supervised) Stop() {
 	sp.stopCh <- struct{}{}
 }
 
-func (sp *supervised) control() { //nolint:gocognit
+func (sp *supervised) control() {
 	now := time.Now()
 
 	// MIGHT BE OUTDATED
