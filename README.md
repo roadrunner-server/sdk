@@ -8,7 +8,7 @@
 	<a href="https://pkg.go.dev/github.com/roadrunner-server/sdk/v2?tab=doc"><img src="https://godoc.org/github.com/roadrunner-server/sdk/v2?status.svg"></a>
 	<a href="https://github.com/roadrunner-server/sdk/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linux/badge.svg" alt=""></a>
 	<a href="https://github.com/roadrunner-server/sdk/actions"><img src="https://github.com/roadrunner-server/roadrunner/workflows/Linters/badge.svg" alt=""></a>
-	<a href="https://goreportcard.com/report/github.com/roadrunner-server/sdk"><img src="https://goreportcard.com/badge/github.com/roadrunner-server/sdk"></a>
+	<a href="https://goreportcard.com/report/github.com/roadrunner-server/sdk/v2"><img src="https://goreportcard.com/badge/github.com/roadrunner-server/sdk/v2"></a>
 	<a href="https://codecov.io/gh/roadrunner-server/sdk"><img src="https://codecov.io/gh/roadrunner-server/sdk/branch/master/graph/badge.svg"></a>
 	<a href="https://lgtm.com/projects/g/roadrunner-server/sdk/alerts/"><img alt="Total alerts" src="https://img.shields.io/lgtm/alerts/g/roadrunner-server/sdk.svg?logo=lgtm&logoWidth=18"/></a>
 	<a href="https://discord.gg/TFeEmCs"><img src="https://img.shields.io/badge/discord-chat-magenta.svg"></a>
