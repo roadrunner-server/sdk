@@ -192,7 +192,7 @@ func Test_StaticPool_Echo_CustomErrEncoder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, res)
-	assert.Equal(t, "foo", err.Error())
+	assert.Contains(t, err.Error(), "foo")
 }
 
 func Test_StaticPool_JobError(t *testing.T) {
