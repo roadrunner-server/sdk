@@ -1,5 +1,29 @@
 # CHANGELOG
 
+# v2.8.0-rc.4 (09.02.2022)
+
+## 👀 New:
+
+- ✏️ Pool: add a new option to override the custom error encoder: `pool.WithCustomErrEncoder`. 
+
+---
+
+# v2.8.0-rc.3 (04.02.2022)
+
+## 📦 Packages:
+
+- 📦 tcplisten `v1.1.1`
+
+---
+
+# v2.8.0-rc.2 (29.01.2022)
+
+## 📦 Packages:
+
+- 📦 goridge `v3.3.1`
+
+---
+
 # v2.8.0-rc.1 (21.01.2022)
 
 ## 👀 New:
