@@ -67,6 +67,8 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *C
 		factory: factory,
 	}
 
+	p.errEncoder = defaultErrEncoder(p)
+
 	// add pool options
 	for i := 0; i < len(options); i++ {
 		options[i](p)
@@ -98,8 +100,6 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *C
 		return nil, err
 	}
 
-	p.errEncoder = defaultErrEncoder(p)
-
 	// if supervised config not nil, guess, that pool wanted to be supervised
 	if cfg.Supervisor != nil {
 		sp := supervisorWrapper(p, p.log, p.cfg.Supervisor)
@@ -109,12 +109,6 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *C
 	}
 
 	return p, nil
-}
-
-func WithLogger(z *zap.Logger) Options {
-	return func(p *StaticPool) {
-		p.log = z
-	}
 }
 
 // GetConfig returns associated pool configuration. Immutable.

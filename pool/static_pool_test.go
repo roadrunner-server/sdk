@@ -171,6 +171,30 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 	assert.Equal(t, "world", string(res.Context))
 }
 
+func Test_StaticPool_Echo_CustomErrEncoder(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewStaticPool(
+		ctx,
+		func() *exec.Cmd { return exec.Command("php", "../tests/client.php", "error", "pipes") },
+		pipe.NewPipeFactory(log),
+		cfg,
+		WithCustomErrEncoder(func(err error, w worker.BaseProcess) (*payload.Payload, error) {
+			return nil, errors.E(errors.Str("foo"))
+		}),
+	)
+	assert.NoError(t, err)
+
+	defer p.Destroy(ctx)
+
+	assert.NotNil(t, p)
+
+	res, err := p.Exec(&payload.Payload{Body: []byte("hello"), Context: []byte("world")})
+
+	assert.Error(t, err)
+	assert.Nil(t, res)
+	assert.Equal(t, "foo", err.Error())
+}
+
 func Test_StaticPool_JobError(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
