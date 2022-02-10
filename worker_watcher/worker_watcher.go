@@ -279,7 +279,16 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 	for {
 		select {
 		case <-tt.C:
+			/*
+				Edge case mostly occurred in reload plugin. When worker is broken, RR can't allocate more of them.
+				So, there is 0 ww.workers len, and it is never equal to the ww.numWorkers
+			*/
 			ww.RLock()
+			if len(ww.workers) == 0 {
+				ww.RUnlock()
+				return
+			}
+
 			// that might be one of the workers is working
 			if atomic.LoadUint64(ww.numWorkers) != uint64(len(ww.workers)) {
 				ww.RUnlock()

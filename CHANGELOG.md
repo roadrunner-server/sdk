@@ -1,5 +1,13 @@
 # CHANGELOG
 
+# v2.8.0-rc.5 (10.02.2022)
+
+## 🩹 Fixes:
+
+- 🐛 Fix: destroy operation hangs if the number of workers is 0: [BUG](https://github.com/roadrunner-server/roadrunner/issues/1003), (reporter @benalf)
+
+---
+
 # v2.8.0-rc.4 (09.02.2022)
 
 ## 👀 New:
