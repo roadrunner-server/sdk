@@ -15,3 +15,9 @@ func WithCustomErrEncoder(errEnc ErrorEncoder) Options {
 		p.errEncoder = errEnc
 	}
 }
+
+func UseParallelAlloc() Options {
+	return func(p *StaticPool) {
+		p.parallelAlloc = true
+	}
+}

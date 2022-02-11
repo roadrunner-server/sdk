@@ -207,6 +207,11 @@ func (tw *SyncWorkerImpl) execPayload(p *payload.Payload) (*payload.Payload, err
 		return nil, errors.E(op, errors.Decode, errors.Str("options length should be equal 1 (body offset)"))
 	}
 
+	// bound check
+	if len(frameR.Payload()) < int(options[0]) {
+		return nil, errors.E(errors.Network, errors.Errorf("bad payload %s", frameR.Payload()))
+	}
+
 	pld := &payload.Payload{
 		Codec:   flags,
 		Body:    make([]byte, len(frameR.Payload()[options[0]:])),
