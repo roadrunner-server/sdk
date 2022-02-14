@@ -171,7 +171,7 @@ func Test_Pipe_Echo(t *testing.T) {
 }
 
 func Test_Pipe_Echo_Script(t *testing.T) {
-	t.Parallel()
+	t.Skip("not supported")
 	cmd := exec.Command("sh", "../../tests/pipes_test_script.sh")
 	ctx := context.Background()
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)

@@ -259,6 +259,7 @@ func Test_Tcp_Echo(t *testing.T) {
 }
 
 func Test_Tcp_Echo_Script(t *testing.T) {
+	t.Skip("not supported")
 	time.Sleep(time.Millisecond * 10) // to ensure free socket
 	ctx := context.Background()
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")

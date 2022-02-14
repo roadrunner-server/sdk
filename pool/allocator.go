@@ -1,0 +1,59 @@
+package pool
+
+import (
+	"context"
+	"os/exec"
+	"time"
+
+	"github.com/roadrunner-server/errors"
+	"github.com/roadrunner-server/sdk/v2/events"
+	"github.com/roadrunner-server/sdk/v2/ipc"
+	"github.com/roadrunner-server/sdk/v2/worker"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+)
+
+func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd func() *exec.Cmd) worker.Allocator {
+	return func() (worker.SyncWorker, error) {
+		ctxT, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd())
+		if err != nil {
+			return nil, err
+		}
+
+		// wrap sync worker
+		sw := worker.From(w)
+		sp.log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
+		return sw, nil
+	}
+}
+
+// allocate required number of stack
+func (sp *StaticPool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
+	const op = errors.Op("static_pool_allocate_workers")
+
+	workers := make([]worker.BaseProcess, numWorkers)
+	eg := new(errgroup.Group)
+
+	// constant number of stack simplify logic
+	for i := uint64(0); i < numWorkers; i++ {
+		ii := i
+		eg.Go(func() error {
+			w, err := sp.allocator()
+			if err != nil {
+				return errors.E(op, errors.WorkerAllocate, err)
+			}
+
+			workers[ii] = w
+			return nil
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	return workers, nil
+}

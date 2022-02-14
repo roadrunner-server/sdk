@@ -37,10 +37,9 @@ type Factory struct {
 // tout specifies for how long factory should serve for incoming relay connection
 func NewSocketServer(ls net.Listener, tout time.Duration, log *zap.Logger) *Factory {
 	f := &Factory{
-		ls:     ls,
-		tout:   tout,
-		relays: sync.Map{},
-		log:    log,
+		ls:   ls,
+		tout: tout,
+		log:  log,
 	}
 
 	// Be careful
@@ -50,6 +49,11 @@ func NewSocketServer(ls net.Listener, tout time.Duration, log *zap.Logger) *Fact
 		err := f.listen()
 		// there is no logger here, use fmt
 		if err != nil {
+			if opErr, ok := err.(*net.OpError); ok {
+				if opErr.Err.Error() == "use of closed network connection" {
+					return
+				}
+			}
 			fmt.Printf("[WARN]: socket server listen, error: %v\n", err)
 		}
 	}()
@@ -210,20 +214,12 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w worker.BaseProcess
 				return nil, err
 			}
 		default:
-			// find first pid and attach relay to it
-			var r *socket.Relay
-			f.relays.Range(func(k, val interface{}) bool {
-				r = val.(*socket.Relay)
-				f.relays.Delete(k)
-				return false
-			})
-
-			// no relay exists
-			if r == nil {
+			rl, ok := f.relays.LoadAndDelete(w.Pid())
+			if !ok {
 				continue
 			}
 
-			return r, nil
+			return rl.(*socket.Relay), nil
 		}
 	}
 }
