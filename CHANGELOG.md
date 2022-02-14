@@ -1,10 +1,20 @@
 # CHANGELOG
 
+# v2.8.1 (14.02.2022)
+
+## 🩹 Fixes:
+
+- 🐛 Fix: errors on workers reallocating when the unix/tcp socket transport is used: [BUG](https://github.com/roadrunner-server/roadrunner/issues/1008), (reporter @tarampampam)
+
+---
+
 # v2.8.0 (11.02.2022)
 
 ## 🩹 Fixes:
 
 - 🐛 Fix: worker sometimes panics when unix/tcp sockets transport used: [BUG](https://github.com/roadrunner-server/roadrunner/issues/1006), (reporter @tarampampam)
+
+---
 
 # v2.8.0-rc.5 (10.02.2022)
 
