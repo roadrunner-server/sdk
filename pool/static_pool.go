@@ -3,7 +3,6 @@ package pool
 import (
 	"context"
 	"os/exec"
-	"time"
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
@@ -13,7 +12,6 @@ import (
 	"github.com/roadrunner-server/sdk/v2/worker"
 	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -41,9 +39,6 @@ type StaticPool struct {
 
 	// manages worker states and TTLs
 	ww Watcher
-
-	// allocate workers in parallel
-	parallelAlloc bool
 
 	// allocate new worker
 	allocator worker.Allocator
@@ -92,7 +87,7 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *C
 	p.ww = workerWatcher.NewSyncWorkerWatcher(p.allocator, p.log, p.cfg.NumWorkers, p.cfg.AllocateTimeout)
 
 	// allocate requested number of workers
-	workers, err := p.allocateWorkers()
+	workers, err := p.parallelAllocator(p.cfg.NumWorkers)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +172,7 @@ func (sp *StaticPool) Destroy(ctx context.Context) {
 func (sp *StaticPool) Reset(ctx context.Context) error {
 	// destroy all workers
 	sp.ww.Reset(ctx)
-	workers, err := sp.allocateWorkers()
+	workers, err := sp.parallelAllocator(sp.cfg.NumWorkers)
 	if err != nil {
 		return err
 	}
@@ -365,91 +360,6 @@ func (sp *StaticPool) execDebugWithTTL(ctx context.Context, p *payload.Payload) 
 	}
 
 	return r, err
-}
-
-func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd func() *exec.Cmd) worker.Allocator {
-	return func() (worker.SyncWorker, error) {
-		ctxT, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd())
-		if err != nil {
-			return nil, err
-		}
-
-		// wrap sync worker
-		sw := worker.From(w)
-		sp.log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
-		return sw, nil
-	}
-}
-
-// allocateWorkers will allocate configured number of workers
-func (sp *StaticPool) allocateWorkers() ([]worker.BaseProcess, error) {
-	switch sp.parallelAlloc {
-	case true:
-		workers, err := sp.parallelAllocator(sp.cfg.NumWorkers)
-		if err != nil {
-			return nil, err
-		}
-
-		return workers, nil
-
-	case false:
-		workers, err := sp.syncAllocator(sp.cfg.NumWorkers)
-		if err != nil {
-			return nil, err
-		}
-
-		return workers, nil
-	}
-
-	return nil, errors.Str("unknown option")
-}
-
-// allocate required number of stack
-func (sp *StaticPool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
-	const op = errors.Op("static_pool_allocate_workers")
-
-	workers := make([]worker.BaseProcess, numWorkers)
-	eg := new(errgroup.Group)
-
-	// constant number of stack simplify logic
-	for i := uint64(0); i < numWorkers; i++ {
-		ii := i
-		eg.Go(func() error {
-			w, err := sp.allocator()
-			if err != nil {
-				return errors.E(op, errors.WorkerAllocate, err)
-			}
-
-			workers[ii] = w
-			return nil
-		})
-	}
-
-	err := eg.Wait()
-	if err != nil {
-		return nil, err
-	}
-
-	return workers, nil
-}
-
-// allocate required number of stack
-func (sp *StaticPool) syncAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
-	workers := make([]worker.BaseProcess, 0, numWorkers)
-
-	// constant number of stack simplify logic
-	for i := uint64(0); i < numWorkers; i++ {
-		w, err := sp.allocator()
-		if err != nil {
-			return nil, errors.E(errors.WorkerAllocate, err)
-		}
-
-		workers = append(workers, w)
-	}
-
-	return workers, nil
 }
 
 /*
