@@ -5,11 +5,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/pool"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/state/process"
-	"github.com/roadrunner-server/sdk/v2/worker"
 	"go.uber.org/zap"
 )
 
@@ -20,21 +21,15 @@ const (
 // NSEC_IN_SEC nanoseconds in second
 const NSEC_IN_SEC int64 = 1000000000 //nolint:stylecheck
 
-type Supervised interface {
-	Pool
-	// Start used to start watching process for all pool workers
-	Start()
-}
-
 type supervised struct {
 	cfg    *SupervisorConfig
-	pool   Pool
+	pool   pool.Pool
 	log    *zap.Logger
 	stopCh chan struct{}
 	mu     *sync.RWMutex
 }
 
-func supervisorWrapper(pool Pool, log *zap.Logger, cfg *SupervisorConfig) *supervised {
+func supervisorWrapper(pool pool.Pool, log *zap.Logger, cfg *SupervisorConfig) *supervised {
 	sp := &supervised{
 		cfg:    cfg,
 		pool:   pool,
@@ -46,7 +41,7 @@ func supervisorWrapper(pool Pool, log *zap.Logger, cfg *SupervisorConfig) *super
 	return sp
 }
 
-func (sp *supervised) execWithTTL(_ context.Context, _ *payload.Payload) (*payload.Payload, error) {
+func (sp *supervised) ExecWithTTL(_ context.Context, _ *payload.Payload) (*payload.Payload, error) {
 	panic("used to satisfy pool interface")
 }
 
@@ -63,7 +58,7 @@ func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), sp.cfg.ExecTTL)
 	defer cancel()
 
-	res, err := sp.pool.execWithTTL(ctx, rqs)
+	res, err := sp.pool.ExecWithTTL(ctx, rqs)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}

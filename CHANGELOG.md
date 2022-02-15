@@ -1,5 +1,14 @@
 # CHANGELOG
 
+# v2.9.0 (15.02.2022)
+
+## 👀 New:
+
+- ✏️ Workers Pool now may override the server's command with its own. Pool command inherits server envs, user, and other configuration: [FR](https://github.com/roadrunner-server/roadrunner/issues/916)  
+
+---
+
+
 # v2.8.1 (14.02.2022)
 
 ## 🩹 Fixes:

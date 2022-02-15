@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/api/v2/worker"
 )
 
 const (

@@ -2,39 +2,8 @@ package worker
 
 import (
 	"sync/atomic"
-)
 
-// SYNC WITH worker_watcher.GET
-const (
-	// StateInactive - no associated process
-	StateInactive int64 = iota
-
-	// StateReady - ready for job.
-	StateReady
-
-	// StateWorking - working on given payload.
-	StateWorking
-
-	// StateInvalid - indicates that WorkerProcess is being disabled and will be removed.
-	StateInvalid
-
-	// StateStopping - process is being softly stopped.
-	StateStopping
-
-	// StateKilling - process is being forcibly stopped
-	StateKilling
-
-	// StateDestroyed State of worker, when no need to allocate new one
-	StateDestroyed
-
-	// StateMaxJobsReached State of worker, when it reached executions limit
-	StateMaxJobsReached
-
-	// StateStopped - process has been terminated.
-	StateStopped
-
-	// StateErrored - error StateImpl (can't be used).
-	StateErrored
+	"github.com/roadrunner-server/api/v2/worker"
 )
 
 type StateImpl struct {
@@ -52,23 +21,23 @@ func NewWorkerState(value int64) *StateImpl {
 // String returns current StateImpl as string.
 func (s *StateImpl) String() string {
 	switch s.Value() {
-	case StateInactive:
+	case worker.StateInactive:
 		return "inactive"
-	case StateReady:
+	case worker.StateReady:
 		return "ready"
-	case StateWorking:
+	case worker.StateWorking:
 		return "working"
-	case StateInvalid:
+	case worker.StateInvalid:
 		return "invalid"
-	case StateStopping:
+	case worker.StateStopping:
 		return "stopping"
-	case StateStopped:
+	case worker.StateStopped:
 		return "stopped"
-	case StateKilling:
+	case worker.StateKilling:
 		return "killing"
-	case StateErrored:
+	case worker.StateErrored:
 		return "errored"
-	case StateDestroyed:
+	case worker.StateDestroyed:
 		return "destroyed"
 	}
 
@@ -88,7 +57,7 @@ func (s *StateImpl) Value() int64 {
 // IsActive returns true if WorkerProcess not Inactive or Stopped
 func (s *StateImpl) IsActive() bool {
 	val := s.Value()
-	return val == StateWorking || val == StateReady
+	return val == worker.StateWorking || val == worker.StateReady
 }
 
 // Set change StateImpl value (status)

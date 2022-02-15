@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roadrunner-server/sdk/v2/payload"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/api/v2/payload"
+	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -167,7 +167,7 @@ func Test_Tcp_Broken2(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
@@ -206,7 +206,7 @@ func Test_Tcp_Echo2(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 
@@ -310,7 +310,7 @@ func Test_Unix_Broken2(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.Error(t, err)
@@ -346,7 +346,7 @@ func Test_Unix_Echo2(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 
@@ -406,7 +406,7 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	for n := 0; n < b.N; n++ {
 		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
@@ -475,7 +475,7 @@ func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	for n := 0; n < b.N; n++ {
 		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {

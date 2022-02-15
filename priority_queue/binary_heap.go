@@ -7,10 +7,12 @@ package priorityqueue
 import (
 	"sync"
 	"sync/atomic"
+
+	"github.com/roadrunner-server/api/v2/pq"
 )
 
 type BinHeap struct {
-	items []Item
+	items []pq.Item
 	// find a way to use pointer to the raw data
 	len    uint64
 	maxLen uint64
@@ -19,7 +21,7 @@ type BinHeap struct {
 
 func NewBinHeap(maxLen uint64) *BinHeap {
 	return &BinHeap{
-		items:  make([]Item, 0, 1000),
+		items:  make([]pq.Item, 0, 1000),
 		len:    0,
 		maxLen: maxLen,
 		cond:   sync.Cond{L: &sync.Mutex{}},
@@ -73,7 +75,7 @@ func (bh *BinHeap) Len() uint64 {
 	return atomic.LoadUint64(&bh.len)
 }
 
-func (bh *BinHeap) Insert(item Item) {
+func (bh *BinHeap) Insert(item pq.Item) {
 	bh.cond.L.Lock()
 
 	// check the binary heap len before insertion
@@ -103,7 +105,7 @@ func (bh *BinHeap) Insert(item Item) {
 	bh.cond.Signal()
 }
 
-func (bh *BinHeap) ExtractMin() Item {
+func (bh *BinHeap) ExtractMin() pq.Item {
 	bh.cond.L.Lock()
 
 	// if len == 0, wait for the signal

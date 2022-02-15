@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/utils"
-	"github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/roadrunner-server/sdk/v2/worker_watcher/container/channel"
 	"go.uber.org/zap"
 )

@@ -4,7 +4,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/roadrunner-server/sdk/v2/payload"
+	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/stretchr/testify/assert"
 )
 

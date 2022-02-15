@@ -6,25 +6,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
-	"github.com/roadrunner-server/sdk/v2/payload"
 	"go.uber.org/multierr"
 )
 
 // Allocator is responsible for worker allocation in the pool
-type Allocator func() (SyncWorker, error)
+type Allocator func() (worker.SyncWorker, error)
 
 type SyncWorkerImpl struct {
-	process *Process
+	process worker.BaseProcess
 	fPool   sync.Pool
 	bPool   sync.Pool
 	chPool  sync.Pool
 }
 
 // From creates SyncWorker from BaseProcess
-func From(process *Process) *SyncWorkerImpl {
+func From(process worker.BaseProcess) *SyncWorkerImpl {
 	return &SyncWorkerImpl{
 		process: process,
 		fPool: sync.Pool{New: func() interface{} {
@@ -48,19 +49,19 @@ func (tw *SyncWorkerImpl) Exec(p *payload.Payload) (*payload.Payload, error) {
 		return nil, errors.E(op, errors.Str("payload can not be empty"))
 	}
 
-	if tw.process.State().Value() != StateReady {
+	if tw.process.State().Value() != worker.StateReady {
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	tw.process.State().Set(StateWorking)
+	tw.process.State().Set(worker.StateWorking)
 
 	rsp, err := tw.execPayload(p)
 	if err != nil {
 		// just to be more verbose
 		if !errors.Is(errors.SoftJob, err) {
-			tw.process.State().Set(StateErrored)
+			tw.process.State().Set(worker.StateErrored)
 			tw.process.State().RegisterExec()
 		}
 		return nil, errors.E(op, err)
@@ -68,12 +69,12 @@ func (tw *SyncWorkerImpl) Exec(p *payload.Payload) (*payload.Payload, error) {
 
 	// supervisor may set state of the worker during the work
 	// in this case we should not re-write the worker state
-	if tw.process.State().Value() != StateWorking {
+	if tw.process.State().Value() != worker.StateWorking {
 		tw.process.State().RegisterExec()
 		return rsp, nil
 	}
 
-	tw.process.State().Set(StateReady)
+	tw.process.State().Set(worker.StateReady)
 	tw.process.State().RegisterExec()
 
 	return rsp, nil
@@ -96,19 +97,19 @@ func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (
 	defer tw.putCh(c)
 
 	// worker was killed before it started to work (supervisor)
-	if tw.process.State().Value() != StateReady {
+	if tw.process.State().Value() != worker.StateReady {
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	tw.process.State().Set(StateWorking)
+	tw.process.State().Set(worker.StateWorking)
 
 	go func() {
 		rsp, err := tw.execPayload(p)
 		if err != nil {
 			// just to be more verbose
 			if errors.Is(errors.SoftJob, err) == false { //nolint:gosimple
-				tw.process.State().Set(StateErrored)
+				tw.process.State().Set(worker.StateErrored)
 				tw.process.State().RegisterExec()
 			}
 			c <- wexec{
@@ -117,7 +118,7 @@ func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (
 			return
 		}
 
-		if tw.process.State().Value() != StateWorking {
+		if tw.process.State().Value() != worker.StateWorking {
 			tw.process.State().RegisterExec()
 			c <- wexec{
 				payload: rsp,
@@ -126,7 +127,7 @@ func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (
 			return
 		}
 
-		tw.process.State().Set(StateReady)
+		tw.process.State().Set(worker.StateReady)
 		tw.process.State().RegisterExec()
 
 		c <- wexec{
@@ -239,7 +240,7 @@ func (tw *SyncWorkerImpl) Created() time.Time {
 	return tw.process.Created()
 }
 
-func (tw *SyncWorkerImpl) State() State {
+func (tw *SyncWorkerImpl) State() worker.State {
 	return tw.process.State()
 }
 

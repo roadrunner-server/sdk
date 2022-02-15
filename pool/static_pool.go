@@ -4,12 +4,13 @@ import (
 	"context"
 	"os/exec"
 
+	"github.com/roadrunner-server/api/v2/ipc"
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/pool"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/ipc"
-	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/utils"
-	"github.com/roadrunner-server/sdk/v2/worker"
 	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
 	"go.uber.org/zap"
 )
@@ -24,7 +25,7 @@ type ErrorEncoder func(err error, w worker.BaseProcess) (*payload.Payload, error
 
 type Options func(p *StaticPool)
 
-type Command func() *exec.Cmd
+type Command func(cmd string) *exec.Cmd
 
 // StaticPool controls worker creation, destruction and task routing. Pool uses fixed amount of stack.
 type StaticPool struct {
@@ -38,7 +39,7 @@ type StaticPool struct {
 	factory ipc.Factory
 
 	// manages worker states and TTLs
-	ww Watcher
+	ww worker.Watcher
 
 	// allocate new worker
 	allocator worker.Allocator
@@ -48,10 +49,13 @@ type StaticPool struct {
 }
 
 // NewStaticPool creates new worker pool and task multiplexer. StaticPool will initiate with one worker.
-func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *Config, options ...Options) (Pool, error) {
+func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf interface{}, log *zap.Logger) (pool.Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
+
+	cfg := conf.(*Config)
+
 	cfg.InitDefaults()
 
 	if cfg.Debug {
@@ -63,14 +67,10 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, cfg *C
 		cfg:     cfg,
 		cmd:     cmd,
 		factory: factory,
+		log:     log,
 	}
 
 	p.errEncoder = defaultErrEncoder(p)
-
-	// add pool options
-	for i := 0; i < len(options); i++ {
-		options[i](p)
-	}
 
 	if p.log == nil {
 		z, err := zap.NewProduction()
@@ -235,7 +235,7 @@ func defaultErrEncoder(sp *StaticPool) ErrorEncoder {
 }
 
 // Be careful, sync with pool.Exec method
-func (sp *StaticPool) execWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+func (sp *StaticPool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("static_pool_exec_with_context")
 	if sp.cfg.Debug {
 		return sp.execDebugWithTTL(ctx, p)
