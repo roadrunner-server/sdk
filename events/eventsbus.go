@@ -5,25 +5,26 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/roadrunner-server/api/v2/event_bus"
 	"github.com/roadrunner-server/errors"
 )
 
 type sub struct {
 	pattern string
 	w       *wildcard
-	events  chan<- Event
+	events  chan<- event_bus.Event
 }
 
 type eventsBus struct {
 	sync.RWMutex
 	subscribers  sync.Map
-	internalEvCh chan Event
+	internalEvCh chan event_bus.Event
 	stop         chan struct{}
 }
 
 func newEventsBus() *eventsBus {
 	return &eventsBus{
-		internalEvCh: make(chan Event, 100),
+		internalEvCh: make(chan event_bus.Event, 100),
 		stop:         make(chan struct{}),
 	}
 }
@@ -34,7 +35,7 @@ http.* <-
 
 // SubscribeAll for all RR events
 // returns subscriptionID
-func (eb *eventsBus) SubscribeAll(subID string, ch chan<- Event) error {
+func (eb *eventsBus) SubscribeAll(subID string, ch chan<- event_bus.Event) error {
 	if ch == nil {
 		return errors.Str("nil channel provided")
 	}
@@ -49,7 +50,7 @@ func (eb *eventsBus) SubscribeAll(subID string, ch chan<- Event) error {
 }
 
 // SubscribeP pattern like "pluginName.EventType"
-func (eb *eventsBus) SubscribeP(subID string, pattern string, ch chan<- Event) error {
+func (eb *eventsBus) SubscribeP(subID string, pattern string, ch chan<- event_bus.Event) error {
 	if ch == nil {
 		return errors.Str("nil channel provided")
 	}
@@ -88,7 +89,7 @@ func (eb *eventsBus) UnsubscribeP(subID, pattern string) {
 }
 
 // Send sends event to the events bus
-func (eb *eventsBus) Send(ev Event) {
+func (eb *eventsBus) Send(ev event_bus.Event) {
 	// do not accept nil events
 	if ev == nil {
 		return
@@ -108,7 +109,7 @@ func (eb *eventsBus) Len() uint {
 	return ln
 }
 
-func (eb *eventsBus) subscribe(subID string, pattern string, ch chan<- Event) error {
+func (eb *eventsBus) subscribe(subID string, pattern string, ch chan<- event_bus.Event) error {
 	eb.Lock()
 	defer eb.Unlock()
 	w, err := newWildcard(pattern)

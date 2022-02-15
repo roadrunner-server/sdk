@@ -4,9 +4,10 @@ import (
 	"context"
 	"os/exec"
 
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/goridge/v3/pkg/pipe"
 	"github.com/roadrunner-server/sdk/v2/internal"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"go.uber.org/zap"
 )
 
@@ -25,16 +26,16 @@ func NewPipeFactory(log *zap.Logger) *Factory {
 }
 
 type sr struct {
-	w   *worker.Process
+	w   worker.BaseProcess
 	err error
 }
 
 // SpawnWorkerWithTimeout creates new Process and connects it to goridge relay,
 // method Wait() must be handled on level above.
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (worker.BaseProcess, error) {
 	spCh := make(chan sr)
 	go func() {
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		w, err := workerImpl.InitBaseWorker(cmd, workerImpl.WithLog(f.log))
 		if err != nil {
 			select {
 			case spCh <- sr{
@@ -134,8 +135,8 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 	}
 }
 
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+func (f *Factory) SpawnWorker(cmd *exec.Cmd) (worker.BaseProcess, error) {
+	w, err := workerImpl.InitBaseWorker(cmd, workerImpl.WithLog(f.log))
 	if err != nil {
 		return nil, err
 	}

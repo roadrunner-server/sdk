@@ -8,11 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
 	"github.com/roadrunner-server/goridge/v3/pkg/socket"
 	"github.com/roadrunner-server/sdk/v2/internal"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/shirou/gopsutil/process"
 	"go.uber.org/zap"
 
@@ -85,17 +86,17 @@ func (f *Factory) listen() error {
 }
 
 type socketSpawn struct {
-	w   *worker.Process
+	w   *workerImpl.Process
 	err error
 }
 
 // SpawnWorkerWithTimeout creates Process and connects it to appropriate relay or return an error
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (worker.BaseProcess, error) {
 	c := make(chan socketSpawn)
 	go func() {
 		ctxT, cancel := context.WithTimeout(ctx, f.tout)
 		defer cancel()
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		w, err := workerImpl.InitBaseWorker(cmd, workerImpl.WithLog(f.log))
 		if err != nil {
 			select {
 			case c <- socketSpawn{
@@ -164,8 +165,8 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 	}
 }
 
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+func (f *Factory) SpawnWorker(cmd *exec.Cmd) (worker.BaseProcess, error) {
+	w, err := workerImpl.InitBaseWorker(cmd, workerImpl.WithLog(f.log))
 	if err != nil {
 		return nil, err
 	}

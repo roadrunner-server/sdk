@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/ipc/pipe"
-	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/utils"
-	"github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -35,6 +35,7 @@ func Test_NewPool(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 
@@ -50,6 +51,7 @@ func Test_NewPoolReset(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -77,6 +79,7 @@ func Test_StaticPool_Invalid(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/invalid.php") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 
 	assert.Nil(t, p)
@@ -92,6 +95,7 @@ func Test_ConfigNoErrorInitDefaults(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.NotNil(t, p)
@@ -106,6 +110,7 @@ func Test_StaticPool_Echo(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 
@@ -130,6 +135,7 @@ func Test_StaticPool_Echo_NilContext(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 
@@ -154,6 +160,7 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "head", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 
@@ -171,30 +178,6 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 	assert.Equal(t, "world", string(res.Context))
 }
 
-func Test_StaticPool_Echo_CustomErrEncoder(t *testing.T) {
-	ctx := context.Background()
-	p, err := NewStaticPool(
-		ctx,
-		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "error", "pipes") },
-		pipe.NewPipeFactory(log),
-		cfg,
-		WithCustomErrEncoder(func(err error, w worker.BaseProcess) (*payload.Payload, error) {
-			return nil, errors.E(errors.Str("foo"))
-		}),
-	)
-	assert.NoError(t, err)
-
-	defer p.Destroy(ctx)
-
-	assert.NotNil(t, p)
-
-	res, err := p.Exec(&payload.Payload{Body: []byte("hello"), Context: []byte("world")})
-
-	assert.Error(t, err)
-	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "foo")
-}
-
 func Test_StaticPool_JobError(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
@@ -202,6 +185,7 @@ func Test_StaticPool_JobError(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "error", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -231,13 +215,13 @@ func Test_StaticPool_Broken_Replace(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "broken", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
-		WithLogger(z),
+		z,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
 	time.Sleep(time.Second)
-	res, err := p.execWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+	res, err := p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
 
@@ -258,6 +242,7 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg2,
+		nil,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -300,6 +285,7 @@ func Test_StaticPool_AllocateTimeout(t *testing.T) {
 			AllocateTimeout: time.Nanosecond * 1,
 			DestroyTimeout:  time.Second * 2,
 		},
+		log,
 	)
 	assert.Error(t, err)
 	if !errors.Is(errors.WorkerAllocate, err) {
@@ -320,6 +306,7 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -358,6 +345,7 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -400,6 +388,7 @@ func Test_StaticPool_Stop_Worker(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -441,6 +430,7 @@ func Test_Static_Pool_Destroy_And_Close(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.NotNil(t, p)
@@ -463,6 +453,7 @@ func Test_Static_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.NotNil(t, p)
@@ -493,6 +484,7 @@ func Test_Static_Pool_Handle_Dead(t *testing.T) {
 			AllocateTimeout: time.Second * 100,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -518,6 +510,7 @@ func Test_Static_Pool_Slow_Destroy(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -541,16 +534,17 @@ func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 			DestroyTimeout:  time.Second,
 			Supervisor:      nil,
 		},
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
 	go func() {
-		_, _ = p.execWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+		_, _ = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
 	}()
 
 	time.Sleep(time.Second)
-	res, err := p.execWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+	res, err := p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
 
@@ -570,6 +564,7 @@ func Test_Static_Pool_WrongCommand1(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.Error(t, err)
@@ -587,6 +582,7 @@ func Test_Static_Pool_WrongCommand2(t *testing.T) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 
 	assert.Error(t, err)
@@ -600,6 +596,7 @@ func Test_CRC_WithPayload(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/crc_error.php") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	assert.Error(t, err)
 	data := err.Error()
@@ -632,6 +629,7 @@ func Benchmark_Pool_Echo(b *testing.B) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfg,
+		log,
 	)
 	if err != nil {
 		b.Fatal(err)
@@ -668,6 +666,7 @@ func Benchmark_Pool_Echo_Batched(b *testing.B) {
 			AllocateTimeout: time.Second * 100,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(b, err)
 	defer p.Destroy(ctx)
@@ -711,6 +710,7 @@ func Benchmark_Pool_Echo_Replaced(b *testing.B) {
 			AllocateTimeout: time.Second,
 			DestroyTimeout:  time.Second,
 		},
+		log,
 	)
 	assert.NoError(b, err)
 	defer p.Destroy(ctx)

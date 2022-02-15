@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
 	"github.com/roadrunner-server/sdk/v2/internal"
@@ -52,7 +53,7 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	w := &Process{
 		created: time.Now(),
 		cmd:     cmd,
-		state:   NewWorkerState(StateInactive),
+		state:   NewWorkerState(worker.StateInactive),
 		doneCh:  make(chan struct{}, 1),
 	}
 
@@ -94,7 +95,7 @@ func (w *Process) Created() time.Time {
 
 // State return receive-only Process state object, state can be used to safely access
 // Process status, time when status changed and number of Process executions.
-func (w *Process) State() State {
+func (w *Process) State() worker.State {
 	return w.state
 }
 
@@ -144,13 +145,13 @@ func (w *Process) Wait() error {
 	w.doneCh <- struct{}{}
 
 	// If worker was destroyed, just exit
-	if w.State().Value() == StateDestroyed {
+	if w.State().Value() == worker.StateDestroyed {
 		return nil
 	}
 
 	// If state is different, and err is not nil, append it to the errors
 	if err != nil {
-		w.State().Set(StateErrored)
+		w.State().Set(worker.StateErrored)
 		err = multierr.Combine(err, errors.E(op, err))
 	}
 
@@ -160,12 +161,12 @@ func (w *Process) Wait() error {
 	// and then process.cmd.Wait return an error
 	err2 := w.closeRelay()
 	if err2 != nil {
-		w.State().Set(StateErrored)
+		w.State().Set(worker.StateErrored)
 		return multierr.Append(err, errors.E(op, err2))
 	}
 
 	if w.cmd.ProcessState.Success() {
-		w.State().Set(StateStopped)
+		w.State().Set(worker.StateStopped)
 		return nil
 	}
 
@@ -191,17 +192,17 @@ func (w *Process) Stop() error {
 	case <-w.doneCh:
 		return nil
 	default:
-		w.state.Set(StateStopping)
+		w.state.Set(worker.StateStopping)
 		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
 		if err != nil {
-			w.state.Set(StateKilling)
+			w.state.Set(worker.StateKilling)
 			_ = w.cmd.Process.Signal(os.Kill)
 
 			return errors.E(op, errors.Network, err)
 		}
 
 		<-w.doneCh
-		w.state.Set(StateStopped)
+		w.state.Set(worker.StateStopped)
 		return nil
 	}
 }
@@ -209,7 +210,7 @@ func (w *Process) Stop() error {
 // Kill kills underlying process, make sure to call Wait() func to gather
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
-	if w.State().Value() == StateDestroyed {
+	if w.State().Value() == worker.StateDestroyed {
 		err := w.cmd.Process.Signal(os.Kill)
 		if err != nil {
 			return err
@@ -218,12 +219,12 @@ func (w *Process) Kill() error {
 		return nil
 	}
 
-	w.state.Set(StateKilling)
+	w.state.Set(worker.StateKilling)
 	err := w.cmd.Process.Signal(os.Kill)
 	if err != nil {
 		return err
 	}
-	w.state.Set(StateStopped)
+	w.state.Set(worker.StateStopped)
 	return nil
 }
 

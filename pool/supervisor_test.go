@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/sdk/v2/ipc/pipe"
-	"github.com/roadrunner-server/sdk/v2/payload"
-	"github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +34,7 @@ func TestSupervisedPool_Exec(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -64,6 +65,7 @@ func Test_SupervisedPoolReset(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
+		log,
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -95,6 +97,7 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/supervised.php") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -133,6 +136,7 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -168,6 +172,7 @@ func TestSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep-ttl.php") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -225,6 +230,7 @@ func TestSupervisedPool_Idle(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/idle.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -275,6 +281,7 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -324,6 +331,7 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -370,6 +378,7 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)
@@ -405,6 +414,7 @@ func TestSupervisedPool_AllocateFailedOK(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/allocate-failed.php") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
+		log,
 	)
 
 	assert.NoError(t, err)

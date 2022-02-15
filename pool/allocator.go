@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/ipc"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/ipc"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,7 +23,7 @@ func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duratio
 		}
 
 		// wrap sync worker
-		sw := worker.From(w)
+		sw := workerImpl.From(w)
 		sp.log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
 		return sw, nil
 	}

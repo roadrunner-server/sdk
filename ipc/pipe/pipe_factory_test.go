@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v2/payload"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -154,7 +155,7 @@ func Test_Pipe_Echo(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -185,7 +186,7 @@ func Test_Pipe_Echo_Script(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -214,7 +215,7 @@ func Test_Pipe_Broken(t *testing.T) {
 		require.Error(t, errW)
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
@@ -246,7 +247,7 @@ func Benchmark_Pipe_Worker_ExecEcho(b *testing.B) {
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
 
 	w, _ := NewPipeFactory(log).SpawnWorkerWithTimeout(context.Background(), cmd)
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -285,7 +286,7 @@ func Benchmark_Pipe_Worker_ExecEcho3(b *testing.B) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	for n := 0; n < b.N; n++ {
 		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
@@ -309,7 +310,7 @@ func Benchmark_Pipe_Worker_ExecEchoWithoutContext(b *testing.B) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	for n := 0; n < b.N; n++ {
 		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
@@ -328,7 +329,7 @@ func Test_Echo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 	go func() {
 		assert.NoError(t, sw.Wait())
 	}()
@@ -356,7 +357,7 @@ func Test_BadPayload(t *testing.T) {
 
 	w, _ := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	go func() {
 		assert.NoError(t, sw.Wait())
@@ -413,7 +414,7 @@ func Test_Echo_Slow(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 
@@ -434,7 +435,7 @@ func Test_Broken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.NotNil(t, err)
@@ -461,7 +462,7 @@ func Test_Error(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.NotNil(t, err)
@@ -489,7 +490,7 @@ func Test_NumExecs(t *testing.T) {
 		}
 	}()
 
-	sw := worker.From(w)
+	sw := workerImpl.From(w)
 
 	_, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
 	if err != nil {
