@@ -31,7 +31,7 @@ func TestSupervisedPool_Exec(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
 	)
@@ -61,7 +61,7 @@ func Test_SupervisedPoolReset(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
 	)
@@ -92,7 +92,7 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/supervised.php") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/supervised.php") },
 		pipe.NewPipeFactory(log),
 		cfgSupervised,
 	)
@@ -130,7 +130,7 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/sleep.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -165,7 +165,7 @@ func TestSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/sleep-ttl.php") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep-ttl.php") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -222,7 +222,7 @@ func TestSupervisedPool_Idle(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/idle.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/idle.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -272,7 +272,7 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -321,7 +321,7 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -367,7 +367,7 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)
@@ -402,7 +402,7 @@ func TestSupervisedPool_AllocateFailedOK(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func() *exec.Cmd { return exec.Command("php", "../tests/allocate-failed.php") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/allocate-failed.php") },
 		pipe.NewPipeFactory(log),
 		cfgExecTTL,
 	)

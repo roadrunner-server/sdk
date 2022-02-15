@@ -2,7 +2,6 @@ package pool
 
 import (
 	"context"
-	"os/exec"
 	"time"
 
 	"github.com/roadrunner-server/errors"
@@ -13,11 +12,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd func() *exec.Cmd) worker.Allocator {
+func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command) worker.Allocator {
 	return func() (worker.SyncWorker, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd())
+		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(sp.cfg.Command))
 		if err != nil {
 			return nil, err
 		}

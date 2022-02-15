@@ -24,7 +24,7 @@ type ErrorEncoder func(err error, w worker.BaseProcess) (*payload.Payload, error
 
 type Options func(p *StaticPool)
 
-type Command func() *exec.Cmd
+type Command func(cmd string) *exec.Cmd
 
 // StaticPool controls worker creation, destruction and task routing. Pool uses fixed amount of stack.
 type StaticPool struct {
