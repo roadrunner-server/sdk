@@ -1,38 +1,14 @@
 package process
 
 import (
+	ps "github.com/roadrunner-server/api/v2/state/process"
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/shirou/gopsutil/process"
 )
 
-// State provides information about specific worker.
-type State struct {
-	// Pid contains process id.
-	Pid int `json:"pid"`
-
-	// Status of the worker.
-	Status string `json:"status"`
-
-	// Number of worker executions.
-	NumJobs uint64 `json:"numExecs"`
-
-	// Created is unix nano timestamp of worker creation time.
-	Created int64 `json:"created"`
-
-	// MemoryUsage holds the information about worker memory usage in bytes.
-	// Values might vary for different operating systems and based on RSS.
-	MemoryUsage uint64 `json:"memoryUsage"`
-
-	// CPU_Percent returns how many percent of the CPU time this process uses
-	CPUPercent float64
-
-	// Command used in the service plugin and shows a command for the particular service
-	Command string
-}
-
 // WorkerProcessState creates new worker state definition.
-func WorkerProcessState(w worker.BaseProcess) (*State, error) {
+func WorkerProcessState(w worker.BaseProcess) (*ps.State, error) {
 	const op = errors.Op("worker_process_state")
 	p, _ := process.NewProcess(int32(w.Pid()))
 	i, err := p.MemoryInfo()
@@ -45,7 +21,7 @@ func WorkerProcessState(w worker.BaseProcess) (*State, error) {
 		return nil, err
 	}
 
-	return &State{
+	return &ps.State{
 		CPUPercent:  percent,
 		Pid:         int(w.Pid()),
 		Status:      w.State().String(),
