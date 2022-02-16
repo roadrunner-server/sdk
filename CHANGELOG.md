@@ -1,5 +1,13 @@
 # CHANGELOG
 
+# Unreleased (x.x.2022)
+
+## 👀 New:
+
+- ✏️ Configurable `CreateListener` method: [FR](https://github.com/roadrunner-server/roadrunner/issues/887) (reporter @iKevinShah)
+
+---
+
 # v2.9.0 (15.02.2022)
 
 ## 👀 New:
