@@ -28,13 +28,13 @@ const (
 //
 //   - TCP_FASTOPEN. See https://lwn.net/Articles/508865/ for details.
 // CreateListener crates socket listener based on DSN definition.
-func CreateListener(address string) (net.Listener, error) {
+func CreateListener(address string, reusePort, deferAccept, fastOpen bool) (net.Listener, error) {
 	dsn := strings.Split(address, "://")
 
 	switch len(dsn) {
 	case 1:
 		// assume, that there is no prefix here [127.0.0.1:8000]
-		return createTCPListener(dsn[0])
+		return createTCPListener(dsn[0], reusePort, deferAccept, fastOpen)
 	case 2:
 		// we got two part here, first part is the transport, second - address
 		// [tcp://127.0.0.1:8000] OR [unix:///path/to/unix.socket] OR [error://path]
@@ -50,7 +50,7 @@ func CreateListener(address string) (net.Listener, error) {
 			}
 			return net.Listen(dsn[0], dsn[1])
 		case "tcp":
-			return createTCPListener(dsn[1])
+			return createTCPListener(dsn[1], reusePort, deferAccept, fastOpen)
 			// not an tcp or unix
 		default:
 			return nil, fmt.Errorf("invalid Protocol ([tcp://]:6001, unix://file.sock), address: %s", address)
@@ -61,11 +61,11 @@ func CreateListener(address string) (net.Listener, error) {
 	}
 }
 
-func createTCPListener(addr string) (net.Listener, error) {
+func createTCPListener(addr string, reusePort, deferAccept, fastOpen bool) (net.Listener, error) {
 	cfg := tcplisten.Config{
-		ReusePort:   true,
-		DeferAccept: false,
-		FastOpen:    true,
+		ReusePort:   reusePort,
+		DeferAccept: deferAccept,
+		FastOpen:    fastOpen,
 	}
 
 	/*
