@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	"os/exec"
+	"sync/atomic"
 
 	"github.com/roadrunner-server/api/v2/ipc"
 	"github.com/roadrunner-server/api/v2/payload"
@@ -46,6 +47,9 @@ type StaticPool struct {
 
 	// errEncoder is the default Exec error encoder
 	errEncoder ErrorEncoder
+
+	// exec queue size
+	queue uint64
 }
 
 // NewStaticPool creates new worker pool and task multiplexer. StaticPool will initiate with one worker.
@@ -68,6 +72,7 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf i
 		cmd:     cmd,
 		factory: factory,
 		log:     log,
+		queue:   0,
 	}
 
 	p.errEncoder = defaultErrEncoder(p)
@@ -131,6 +136,9 @@ func (sp *StaticPool) Exec(p *payload.Payload) (*payload.Payload, error) {
 		return sp.execDebug(p)
 	}
 
+	atomic.AddUint64(&sp.queue, 1)
+	defer atomic.AddUint64(&sp.queue, ^uint64(0))
+
 	// see notes at the end of the file
 begin:
 	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
@@ -164,9 +172,58 @@ begin:
 	return rsp, nil
 }
 
+// ExecWithTTL sync with pool.Exec method
+func (sp *StaticPool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+	const op = errors.Op("static_pool_exec_with_context")
+	if sp.cfg.Debug {
+		return sp.execDebugWithTTL(ctx, p)
+	}
+
+	atomic.AddUint64(&sp.queue, 1)
+	defer atomic.AddUint64(&sp.queue, ^uint64(0))
+
+	// see notes at the end of the file
+begin:
+	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
+	defer cancel()
+	w, err := sp.takeWorker(ctxGetFree, op)
+	if err != nil {
+		return nil, errors.E(op, err)
+	}
+
+	rsp, err := w.(worker.SyncWorker).ExecWithTTL(ctx, p)
+	if err != nil {
+		if errors.Is(errors.Retry, err) {
+			sp.ww.Release(w)
+			goto begin
+		}
+		return sp.errEncoder(err, w)
+	}
+
+	// worker want's to be terminated
+	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
+		sp.stopWorker(w)
+		goto begin
+	}
+
+	if sp.cfg.MaxJobs != 0 {
+		sp.checkMaxJobs(w)
+		return rsp, nil
+	}
+
+	// return worker back
+	sp.ww.Release(w)
+	return rsp, nil
+}
+
+func (sp *StaticPool) QueueSize() uint64 {
+	return atomic.LoadUint64(&sp.queue)
+}
+
 // Destroy all underlying stack (but let them complete the task).
 func (sp *StaticPool) Destroy(ctx context.Context) {
 	sp.ww.Destroy(ctx)
+	atomic.StoreUint64(&sp.queue, 0)
 }
 
 func (sp *StaticPool) Reset(ctx context.Context) error {
@@ -232,47 +289,6 @@ func defaultErrEncoder(sp *StaticPool) ErrorEncoder {
 			return nil, err
 		}
 	}
-}
-
-// Be careful, sync with pool.Exec method
-func (sp *StaticPool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("static_pool_exec_with_context")
-	if sp.cfg.Debug {
-		return sp.execDebugWithTTL(ctx, p)
-	}
-
-	// see notes at the end of the file
-begin:
-	ctxAlloc, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
-	w, err := sp.takeWorker(ctxAlloc, op)
-	if err != nil {
-		return nil, errors.E(op, err)
-	}
-
-	rsp, err := w.(worker.SyncWorker).ExecWithTTL(ctx, p)
-	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
-		}
-		return sp.errEncoder(err, w)
-	}
-
-	// worker want's to be terminated
-	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
-		sp.stopWorker(w)
-		goto begin
-	}
-
-	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return rsp, nil
-	}
-
-	// return worker back
-	sp.ww.Release(w)
-	return rsp, nil
 }
 
 func (sp *StaticPool) stopWorker(w worker.BaseProcess) {

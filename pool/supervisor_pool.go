@@ -74,6 +74,15 @@ func (sp *supervised) Workers() (workers []worker.BaseProcess) {
 	return sp.pool.Workers()
 }
 
+func (sp *supervised) QueueSize() uint64 {
+	queuer, ok := sp.pool.(pool.Queuer)
+	if ok {
+		return queuer.QueueSize()
+	}
+
+	return 0
+}
+
 func (sp *supervised) RemoveWorker(worker worker.BaseProcess) error {
 	return sp.pool.RemoveWorker(worker)
 }
