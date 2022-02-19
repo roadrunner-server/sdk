@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/pool"
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/ipc/pipe"
@@ -549,6 +550,40 @@ func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 	assert.Nil(t, res)
 
 	time.Sleep(time.Second)
+
+	p.Destroy(ctx)
+}
+
+func Test_StaticPool_QueueSize(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewStaticPool(
+		ctx,
+		// sleep for the 3 seconds
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep_short.php", "pipes") },
+		pipe.NewPipeFactory(log),
+		&Config{
+			Debug:           false,
+			NumWorkers:      1,
+			AllocateTimeout: time.Second,
+			DestroyTimeout:  time.Second,
+			Supervisor:      nil,
+		},
+		log,
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			_, _ = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+		}()
+	}
+
+	time.Sleep(time.Second)
+	require.LessOrEqual(t, p.(pool.Queuer).QueueSize(), uint64(10))
+	time.Sleep(time.Second * 20)
+	require.Less(t, p.(pool.Queuer).QueueSize(), uint64(10))
 
 	p.Destroy(ctx)
 }
