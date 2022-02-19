@@ -581,7 +581,7 @@ func Test_StaticPool_QueueSize(t *testing.T) {
 	}
 
 	time.Sleep(time.Second)
-	require.Equal(t, uint64(10), p.(pool.Queuer).QueueSize())
+	require.LessOrEqual(t, p.(pool.Queuer).QueueSize(), uint64(10))
 	time.Sleep(time.Second * 20)
 	require.Less(t, p.(pool.Queuer).QueueSize(), uint64(10))
 
