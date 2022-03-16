@@ -5,13 +5,13 @@ import (
 )
 
 func WithLogger(z *zap.Logger) Options {
-	return func(p *StaticPool) {
+	return func(p *Pool) {
 		p.log = z
 	}
 }
 
 func WithCustomErrEncoder(errEnc ErrorEncoder) Options {
-	return func(p *StaticPool) {
+	return func(p *Pool) {
 		p.errEncoder = errEnc
 	}
 }

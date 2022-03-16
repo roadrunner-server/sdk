@@ -1,0 +1,120 @@
+package pool
+
+import (
+	"context"
+
+	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/api/v2/worker"
+	"github.com/roadrunner-server/errors"
+	"github.com/roadrunner-server/sdk/v2/events"
+	"go.uber.org/zap"
+)
+
+// execDebug used when debug mode was not set and exec_ttl is 0
+func (sp *Pool) execDebugStream(p *payload.Payload, resp chan *payload.Payload) error {
+	sw, err := sp.allocator()
+	if err != nil {
+		return err
+	}
+
+	if _, ok := sw.(worker.Streamer); !ok {
+		close(resp)
+		return errors.Str("executed on stream worker, but stream worker is not initialized")
+	}
+
+	// redirect call to the workers' exec method (without ttl)
+	err = sw.(worker.Streamer).ExecStream(p, resp)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		// read the exit status to prevent process to be a zombie
+		_ = sw.Wait()
+	}()
+
+	// destroy the worker
+	err = sw.Stop()
+	if err != nil {
+		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+// execDebugWithTTL used when user set debug mode and exec_ttl
+func (sp *Pool) streamExecDebugWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload) error {
+	sw, err := sp.allocator()
+	if err != nil {
+		return err
+	}
+
+	// redirect call to the worker with TTL
+	err = sw.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		// read the exit status to prevent process to be a zombie
+		_ = sw.Wait()
+	}()
+
+	err = sw.Stop()
+	if err != nil {
+		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func streamErrEncoder(sp *Pool) StreamErrorEncoder {
+	return func(err error, w worker.BaseProcess) error {
+		// just push event if on any stage was timeout error
+		switch {
+		case errors.Is(errors.ExecTTL, err):
+			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "execTTL timeout elapsed"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventExecTTL.String()), zap.Error(err))
+			w.State().Set(worker.StateInvalid)
+			return err
+
+		case errors.Is(errors.SoftJob, err):
+			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "worker error"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+			// if max jobs exceed
+			if sp.cfg.MaxJobs != 0 && w.State().NumExecs() >= sp.cfg.MaxJobs {
+				// mark old as invalid and stop
+				w.State().Set(worker.StateInvalid)
+				errS := w.Stop()
+				if errS != nil {
+					return errors.E(errors.SoftJob, errors.Errorf("err: %v\nerrStop: %v", err, errS))
+				}
+
+				return err
+			}
+
+			// soft jobs errors are allowed, just put the worker back
+			sp.ww.Release(w)
+
+			return err
+		case errors.Is(errors.Network, err):
+			// in case of network error, we can't stop the worker, we should kill it
+			w.State().Set(worker.StateInvalid)
+			sp.log.Warn("network error, worker will be restarted", zap.String("reason", "network"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+			// kill the worker instead of sending net packet to it
+			_ = w.Kill()
+
+			return err
+		default:
+			w.State().Set(worker.StateInvalid)
+			sp.log.Warn("worker will be restarted", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
+			// stop the worker, worker here might be in the broken state (network)
+			errS := w.Stop()
+			if errS != nil {
+				return errors.E(errors.Errorf("err: %v\nerrStop: %v", err, errS))
+			}
+
+			return err
+		}
+	}
+}
