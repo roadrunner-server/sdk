@@ -35,8 +35,8 @@ func SendControl(rl relay.Relay, payload interface{}) error {
 	fr := getFrame()
 	defer putFrame(fr)
 
-	fr.WriteVersion(fr.Header(), frame.VERSION_1)
-	fr.WriteFlags(fr.Header(), frame.CONTROL, frame.CODEC_JSON)
+	fr.WriteVersion(fr.Header(), frame.Version1)
+	fr.WriteFlags(fr.Header(), frame.CONTROL, frame.CodecJSON)
 
 	if data, ok := payload.([]byte); ok {
 		// check if payload no more that 4Gb

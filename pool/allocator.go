@@ -14,7 +14,7 @@ import (
 )
 
 func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command) worker.Allocator {
-	return func() (worker.SyncWorker, error) {
+	return func() (worker.BaseProcess, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(sp.cfg.Command))

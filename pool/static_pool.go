@@ -331,7 +331,7 @@ func (sp *StaticPool) execDebug(p *payload.Payload) (*payload.Payload, error) {
 	}
 
 	// redirect call to the workers' exec method (without ttl)
-	r, err := sw.Exec(p)
+	r, err := sw.(worker.Worker).Exec(p)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (sp *StaticPool) execDebugWithTTL(ctx context.Context, p *payload.Payload) 
 	}
 
 	// redirect call to the worker with TTL
-	r, err := sw.ExecWithTTL(ctx, p)
+	r, err := sw.(worker.Worker).ExecWithTTL(ctx, p)
 	if err != nil {
 		return nil, err
 	}
