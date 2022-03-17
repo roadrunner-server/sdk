@@ -422,7 +422,7 @@ func (sp *Pool) execDebug(p *payload.Payload) (*payload.Payload, error) {
 	}
 
 	// redirect call to the workers' exec method (without ttl)
-	r, err := sw.(worker.SyncWorker).Exec(p)
+	r, err := sw.(worker.Worker).Exec(p)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +450,7 @@ func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payl
 	}
 
 	// redirect call to the worker with TTL
-	r, err := sw.(worker.SyncWorker).ExecWithTTL(ctx, p)
+	r, err := sw.(worker.Worker).ExecWithTTL(ctx, p)
 	if err != nil {
 		return nil, err
 	}
