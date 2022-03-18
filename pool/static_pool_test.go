@@ -247,7 +247,6 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
-	defer p.Destroy(ctx)
 	time.Sleep(time.Second)
 
 	res, err := p.Exec(&payload.Payload{Body: []byte("hello")})
@@ -274,6 +273,9 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	for _, w := range list {
 		assert.Equal(t, worker.StateReady, w.State().Value())
 	}
+	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
+	p.Destroy(ctxNew)
+	cancel()
 }
 
 func Test_StaticPool_AllocateTimeout(t *testing.T) {
@@ -304,7 +306,7 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 		&Config{
 			NumWorkers:      1,
 			MaxJobs:         1,
-			AllocateTimeout: time.Second,
+			AllocateTimeout: time.Second * 5,
 			DestroyTimeout:  time.Second,
 		},
 		log,
@@ -312,7 +314,6 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	defer p.Destroy(ctx)
 	// prevent process is not ready
 	time.Sleep(time.Second)
 
@@ -320,19 +321,22 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
 
 	res, _ := p.Exec(&payload.Payload{Body: []byte("hello")})
-	assert.Equal(t, lastPID, string(res.Body))
+	require.Equal(t, lastPID, string(res.Body))
 
 	for i := 0; i < 10; i++ {
 		res, err := p.Exec(&payload.Payload{Body: []byte("hello")})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.Body)
+		require.Empty(t, res.Context)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
-
-		assert.NotEqual(t, lastPID, string(res.Body))
+		require.NotEqual(t, lastPID, string(res.Body))
 		lastPID = string(res.Body)
 	}
+
+	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
+	p.Destroy(ctxNew)
+	cancel()
 }
 
 func Test_StaticPool_Debug_Worker(t *testing.T) {
@@ -350,8 +354,6 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
-
-	defer p.Destroy(ctx)
 
 	// prevent process is not ready
 	time.Sleep(time.Second)
@@ -375,6 +377,10 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 		assert.NotEqual(t, lastPID, string(res.Body))
 		lastPID = string(res.Body)
 	}
+
+	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
+	p.Destroy(ctxNew)
+	cancel()
 }
 
 // identical to replace but controlled on worker side
@@ -541,7 +547,9 @@ func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 	assert.NotNil(t, p)
 
 	go func() {
-		_, _ = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+		ctxNew, cancel := context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		_, _ = p.ExecWithTTL(ctxNew, &payload.Payload{Body: []byte("hello")})
 	}()
 
 	time.Sleep(time.Second)

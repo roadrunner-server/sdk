@@ -34,6 +34,7 @@ type workerWatcher struct {
 	container Vector
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
+	stopped    *uint64
 
 	workers []worker.BaseProcess
 	log     *zap.Logger
@@ -52,6 +53,7 @@ func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorker
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
 		workers:         make([]worker.BaseProcess, 0, numWorkers),
+		stopped:         ptrTo(uint64(0)),
 
 		allocator: allocator,
 	}
@@ -268,6 +270,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 // Destroy all underlying container (but let them complete the task)
 func (ww *workerWatcher) Destroy(ctx context.Context) {
+	atomic.StoreUint64(ww.stopped, 1)
 	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	ww.Lock()
 	// do not release new workers
@@ -346,6 +349,12 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 		ww.log.Debug("worker stopped", zap.String("internal_event_name", events.EventWorkerWaitExit.String()), zap.Error(err))
 	}
 
+	// worker watcher stopped, just exit
+	// this can happen for the intensive allocations and destroys
+	if atomic.CompareAndSwapUint64(ww.stopped, 1, 1) {
+		return
+	}
+
 	// remove worker
 	ww.Remove(w)
 
@@ -373,4 +382,8 @@ func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
 	go func() {
 		ww.wait(wb)
 	}()
+}
+
+func ptrTo(val uint64) *uint64 {
+	return &val
 }
