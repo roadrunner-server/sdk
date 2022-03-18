@@ -46,7 +46,7 @@ func TestSupervisedPool_Exec(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-		_, err = p.Exec(&payload.Payload{
+		_, err = p.ExecWithTTL(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
 		})
@@ -107,7 +107,7 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-		_, err = p.Exec(&payload.Payload{
+		_, err = p.ExecWithTTL(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
 		})
@@ -145,7 +145,7 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 
 	pid := p.Workers()[0].Pid()
 
-	resp, err := p.Exec(&payload.Payload{
+	resp, err := p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})
@@ -180,7 +180,7 @@ func TestSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 
 	pid := p.Workers()[0].Pid()
 
-	resp, err := p.Exec(&payload.Payload{
+	resp, err := p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})
@@ -250,7 +250,7 @@ func TestSupervisedPool_Idle(t *testing.T) {
 	time.Sleep(time.Second * 5)
 
 	// worker should be marked as invalid and reallocated
-	rsp, err := p.Exec(&payload.Payload{
+	rsp, err := p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})
@@ -291,7 +291,7 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 	pid := p.Workers()[0].Pid()
 
 	time.Sleep(time.Millisecond * 100)
-	resp, err := p.Exec(&payload.Payload{
+	resp, err := p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})
@@ -341,7 +341,7 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 	pid := p.Workers()[0].Pid()
 
 	time.Sleep(time.Millisecond * 100)
-	resp, err := p.Exec(&payload.Payload{
+	resp, err := p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})
@@ -423,7 +423,7 @@ func TestSupervisedPool_AllocateFailedOK(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// should be ok
-	_, err = p.Exec(&payload.Payload{
+	_, err = p.ExecWithTTL(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
 	})

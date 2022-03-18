@@ -132,94 +132,6 @@ func (sp *Pool) RemoveWorker(wb worker.BaseProcess) error {
 	return nil
 }
 
-func (sp *Pool) ExecStream(p *payload.Payload, resp chan *payload.Payload) error {
-	const op = errors.Op("static_pool_exec")
-	if sp.cfg.Debug {
-		return sp.execDebugStream(p, resp)
-	}
-
-	atomic.AddUint64(&sp.queue, 1)
-	defer atomic.AddUint64(&sp.queue, ^uint64(0))
-
-	// see notes at the end of the file
-begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
-	w, err := sp.takeWorker(ctxGetFree, op)
-	if err != nil {
-		return errors.E(op, err)
-	}
-
-	err = w.(worker.Streamer).ExecStream(p, resp)
-	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
-		}
-
-		return streamErrEncoder(sp)(err, w)
-	}
-
-	// worker requested stop
-	if errors.Is(errors.Stop, err) {
-		sp.stopWorker(w)
-		goto begin
-	}
-
-	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return nil
-	}
-
-	// return worker back
-	sp.ww.Release(w)
-	return nil
-}
-
-func (sp *Pool) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload) error {
-	const op = errors.Op("stream_pool_exec_with_context")
-	if sp.cfg.Debug {
-		return sp.streamExecDebugWithTTL(ctx, p, resp)
-	}
-
-	atomic.AddUint64(&sp.queue, 1)
-	defer atomic.AddUint64(&sp.queue, ^uint64(0))
-
-	// see notes at the end of the file
-begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
-	w, err := sp.takeWorker(ctxGetFree, op)
-	if err != nil {
-		return errors.E(op, err)
-	}
-
-	err = w.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp)
-	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
-		}
-
-		return streamErrEncoder(sp)(err, w)
-	}
-
-	// worker requested stop
-	if errors.Is(errors.Stop, err) {
-		sp.stopWorker(w)
-		goto begin
-	}
-
-	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return nil
-	}
-
-	// return worker back
-	sp.ww.Release(w)
-	return nil
-}
-
 // Exec executes provided payload on the worker
 func (sp *Pool) Exec(p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("static_pool_exec")
@@ -245,6 +157,7 @@ begin:
 			sp.ww.Release(w)
 			goto begin
 		}
+
 		return sp.errEncoder(err, w)
 	}
 
