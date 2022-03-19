@@ -271,30 +271,6 @@ func Benchmark_Pipe_Worker_ExecEcho(b *testing.B) {
 	}
 }
 
-func Benchmark_Pipe_Worker_ExecEcho3(b *testing.B) {
-	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
-	ctx := context.Background()
-	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	defer func() {
-		err = w.Stop()
-		if err != nil {
-			b.Errorf("error stopping the Process: error %v", err)
-		}
-	}()
-
-	sw := workerImpl.From(w)
-
-	for n := 0; n < b.N; n++ {
-		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
-			b.Fail()
-		}
-	}
-}
-
 func Benchmark_Pipe_Worker_ExecEchoWithoutContext(b *testing.B) {
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
 	ctx := context.Background()

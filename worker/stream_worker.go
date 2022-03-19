@@ -22,11 +22,13 @@ func (tw *Worker) ExecStream(p *payload.Payload, resp chan *payload.Payload) err
 	const op = errors.Op("sync_worker_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
+		close(resp)
 		return errors.E(op, errors.Str("payload can not be empty"))
 	}
 
 	if tw.process.State().Value() != worker.StateReady {
-		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
+		close(resp)
+		return errors.E(op, errors.Retry, errors.Errorf("process is not ready (%s)", tw.process.State().String()))
 	}
 
 	// set last used time
@@ -62,6 +64,7 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 	const op = errors.Op("sync_worker_exec_worker_with_timeout")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
+		close(resp)
 		return errors.E(op, errors.Str("payload can not be empty"))
 	}
 
@@ -70,7 +73,8 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 
 	// worker was killed before it started to work (supervisor)
 	if tw.process.State().Value() != worker.StateReady {
-		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
+		close(resp)
+		return errors.E(op, errors.Retry, errors.Errorf("process is not ready (%s)", tw.process.State().String()))
 	}
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
