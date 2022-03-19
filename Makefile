@@ -21,7 +21,7 @@ test_coverage:
 test: ## Run application tests
 	go test -v -race -tags=debug ./ipc/pipe
 	go test -v -race -tags=debug ./ipc/socket
-	go test -v -race -tags=debug ./pool
+	go test -v -race -fuzz=FuzzStaticPoolEcho -fuzztime=30s -tags=debug ./pool
 	go test -v -race -tags=debug ./worker
 	go test -v -race -tags=debug ./worker_watcher
 	go test -v -race -tags=debug ./bst

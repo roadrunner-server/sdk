@@ -25,7 +25,7 @@ func Test_StreamPool_Echo(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -62,7 +62,7 @@ func Test_StreamPool_Echo_NilContext(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -99,7 +99,7 @@ func Test_StreamPool_Echo_Context(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "head", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -136,7 +136,7 @@ func Test_StreamPool_JobError(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "error", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -170,7 +170,7 @@ func Test_StreamPool_Broken_Replace(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "broken", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		z,
 	)
 	assert.NoError(t, err)
@@ -664,7 +664,7 @@ func Benchmark_StreamPool_Echo(b *testing.B) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	if err != nil {

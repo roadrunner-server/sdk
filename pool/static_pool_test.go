@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var cfg = &Config{
+var testCfg = &Config{
 	NumWorkers:      uint64(runtime.NumCPU()),
 	AllocateTimeout: time.Second * 500,
 	DestroyTimeout:  time.Second * 500,
@@ -35,7 +35,7 @@ func Test_NewPool(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -51,7 +51,7 @@ func Test_NewPoolReset(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -79,7 +79,7 @@ func Test_StaticPool_Invalid(t *testing.T) {
 		context.Background(),
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/invalid.php") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 
@@ -110,7 +110,7 @@ func Test_StaticPool_Echo(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -135,7 +135,7 @@ func Test_StaticPool_Echo_NilContext(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -160,7 +160,7 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "head", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -185,7 +185,7 @@ func Test_StaticPool_JobError(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "error", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.NoError(t, err)
@@ -215,7 +215,7 @@ func Test_StaticPool_Broken_Replace(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "broken", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		z,
 	)
 	assert.NoError(t, err)
@@ -638,7 +638,7 @@ func Test_CRC_WithPayload(t *testing.T) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/crc_error.php") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	assert.Error(t, err)
@@ -671,7 +671,7 @@ func Benchmark_Pool_Echo(b *testing.B) {
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		cfg,
+		testCfg,
 		log,
 	)
 	if err != nil {
