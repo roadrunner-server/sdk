@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (sp *Pool) ExecStream(p *payload.Payload, resp chan *payload.Payload) error {
+func (sp *Pool) ExecStream(p *payload.Payload, resp chan *payload.Payload, _ chan struct{}) error {
 	const op = errors.Op("static_pool_exec")
 	if sp.cfg.Debug {
 		return sp.execDebugStream(p, resp)
@@ -32,7 +32,7 @@ begin:
 	}
 
 	// in the Exec* channel managed by the underlying functions
-	err = w.(worker.Streamer).ExecStream(p, resp)
+	err = w.(worker.Streamer).ExecStream(p, resp, nil)
 	if err != nil {
 		if errors.Is(errors.Retry, err) {
 			sp.ww.Release(w)
@@ -59,7 +59,7 @@ begin:
 	return nil
 }
 
-func (sp *Pool) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload) error {
+func (sp *Pool) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload, _ chan struct{}) error {
 	const op = errors.Op("stream_pool_exec_with_context")
 	if sp.cfg.Debug {
 		return sp.streamExecDebugWithTTL(ctx, p, resp)
@@ -80,7 +80,7 @@ begin:
 	}
 
 	// in the Exec* channel managed by the underlying functions
-	err = w.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp)
+	err = w.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp, nil)
 	if err != nil {
 		if errors.Is(errors.Retry, err) {
 			sp.ww.Release(w)
@@ -120,7 +120,7 @@ func (sp *Pool) execDebugStream(p *payload.Payload, resp chan *payload.Payload) 
 	}
 
 	// redirect call to the workers' exec method (without ttl)
-	err = sw.(worker.Streamer).ExecStream(p, resp)
+	err = sw.(worker.Streamer).ExecStream(p, resp, nil)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (sp *Pool) streamExecDebugWithTTL(ctx context.Context, p *payload.Payload, 
 	}
 
 	// redirect call to the worker with TTL
-	err = sw.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp)
+	err = sw.(worker.Streamer).ExecStreamWithTTL(ctx, p, resp, nil)
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ const (
 	StopRequest = `{"stop":true}`
 )
 
-func (tw *Worker) ExecStream(p *payload.Payload, resp chan *payload.Payload) error {
+func (tw *Worker) ExecStream(p *payload.Payload, resp chan *payload.Payload, stopCh chan struct{}) error {
 	const op = errors.Op("sync_worker_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
@@ -35,7 +35,7 @@ func (tw *Worker) ExecStream(p *payload.Payload, resp chan *payload.Payload) err
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
 	tw.process.State().Set(worker.StateWorking)
 
-	err := tw.execStreamPayload(p, resp)
+	err := tw.execStreamPayload(p, resp, stopCh)
 	if err != nil && !errors.Is(errors.Stop, err) {
 		// just to be more verbose
 		if !errors.Is(errors.SoftJob, err) {
@@ -60,7 +60,7 @@ func (tw *Worker) ExecStream(p *payload.Payload, resp chan *payload.Payload) err
 	return err
 }
 
-func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload) error {
+func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, resp chan *payload.Payload, stopCh chan struct{}) error {
 	const op = errors.Op("sync_worker_exec_worker_with_timeout")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
@@ -81,7 +81,7 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 	tw.process.State().Set(worker.StateWorking)
 
 	go func() {
-		err := tw.execStreamPayload(p, resp)
+		err := tw.execStreamPayload(p, resp, stopCh)
 		if err != nil && !errors.Is(errors.Stop, err) {
 			// just to be more verbose
 			if errors.Is(errors.SoftJob, err) == false { //nolint:gosimple
@@ -129,7 +129,7 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 	}
 }
 
-func (tw *Worker) execStreamPayload(p *payload.Payload, resp chan *payload.Payload) error {
+func (tw *Worker) execStreamPayload(p *payload.Payload, resp chan *payload.Payload, stopCh chan struct{}) error {
 	const op = errors.Op("streamer_worker_exec_payload")
 
 	// get a frame
@@ -210,7 +210,15 @@ stream:
 		copy(pld.Body, frameR.Payload()[options[0]:])
 		copy(pld.Context, frameR.Payload()[:options[0]])
 
-		resp <- pld
+		// check for the stop signal
+		select {
+		case <-stopCh:
+			// do stop routines
+			// send response to the worker indicating, that connection was interrupted
+			// use 3-rd bit of 10th byte to indicate and error
+		default:
+			resp <- pld
+		}
 
 		frameR.Reset()
 		goto stream
@@ -235,7 +243,15 @@ stream:
 	copy(pld.Body, frameR.Payload()[options[0]:])
 	copy(pld.Context, frameR.Payload()[:options[0]])
 
-	resp <- pld
+	// check for the stop signal
+	select {
+	case <-stopCh:
+		// do stop routines
+		// send response to the worker indicating, that connection was interrupted
+		// use 3-rd bit of 10th byte to indicate and error
+	default:
+		resp <- pld
+	}
 
 	close(resp)
 	return nil

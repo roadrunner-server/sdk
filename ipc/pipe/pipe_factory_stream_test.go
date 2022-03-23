@@ -15,7 +15,6 @@ import (
 )
 
 func Test_StreamPipe_Echo(t *testing.T) {
-	t.Parallel()
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
 	ctx := context.Background()
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
@@ -44,7 +43,7 @@ func Test_StreamPipe_Echo(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -58,9 +57,8 @@ func Test_StreamPipe_Echo(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_StreamPipe_Echo_Script(t *testing.T) {
-	t.Skip("not supported yet")
-	cmd := exec.Command("sh", "../../tests/pipes_test_script.sh")
+func Test_StreamPipe_Echo3(t *testing.T) {
+	cmd := exec.Command("php", "../../tests/stream_worker.php")
 	ctx := context.Background()
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
 	if err != nil {
@@ -70,7 +68,13 @@ func Test_StreamPipe_Echo_Script(t *testing.T) {
 	defer func() {
 		err = w.Stop()
 		if err != nil {
-			t.Errorf("error stopping the Process: error %v", err)
+			t.Errorf("error stopping the process: error %v", err)
+		}
+	}()
+
+	go func() {
+		if w.Wait() != nil {
+			t.Fail()
 		}
 	}()
 
@@ -82,22 +86,18 @@ func Test_StreamPipe_Echo_Script(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, make(chan struct{}))
 		assert.NoError(t, errS)
 	}()
 
 	for res := range resp {
-		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
-		assert.Equal(t, "hello", res.String())
+		require.Equal(t, "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", string(res.Body))
 	}
 
 	wg.Wait()
 }
 
 func Test_StreamPipe_Broken(t *testing.T) {
-	t.Parallel()
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "pipes")
 	ctx := context.Background()
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
@@ -117,7 +117,7 @@ func Test_StreamPipe_Broken(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 	}()
 
@@ -157,7 +157,7 @@ func Benchmark_StreamPipe_Worker_ExecEcho(b *testing.B) {
 		resp := make(chan *payload.Payload)
 
 		go func() {
-			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		}()
 
 		for range resp {
@@ -166,7 +166,6 @@ func Benchmark_StreamPipe_Worker_ExecEcho(b *testing.B) {
 }
 
 func Test_StreamEcho(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
 
@@ -192,7 +191,7 @@ func Test_StreamEcho(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -230,7 +229,7 @@ func Test_StreamBadPayload(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{}, resp)
+		errS := sw.ExecStream(&payload.Payload{}, resp, nil)
 		assert.Error(t, errS)
 		assert.Contains(t, errS.Error(), "payload can not be empty")
 	}()
@@ -243,7 +242,6 @@ func Test_StreamBadPayload(t *testing.T) {
 }
 
 func Test_StreamEcho_Slow(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "pipes", "10", "10")
 
@@ -266,7 +264,7 @@ func Test_StreamEcho_Slow(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -297,7 +295,7 @@ func Test_StreamBroken(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 	}()
 
@@ -312,7 +310,6 @@ func Test_StreamBroken(t *testing.T) {
 }
 
 func Test_StreamError(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	cmd := exec.Command("php", "../../tests/client.php", "error", "pipes")
 
@@ -336,7 +333,7 @@ func Test_StreamError(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 		require.True(t, errors.Is(errors.SoftJob, errS))
 		assert.Contains(t, errS.Error(), "hello")
@@ -350,7 +347,6 @@ func Test_StreamError(t *testing.T) {
 }
 
 func Test_StreamNumExecs(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "pipes")
 
@@ -372,7 +368,7 @@ func Test_StreamNumExecs(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -388,7 +384,7 @@ func Test_StreamNumExecs(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -403,7 +399,7 @@ func Test_StreamNumExecs(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -433,7 +429,7 @@ func Test_StreamPipe_Echo2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -463,7 +459,7 @@ func Test_StreamPipe_Broken2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 	}()
 
@@ -503,7 +499,7 @@ func Benchmark_StreamPipe_Worker_ExecEcho2(b *testing.B) {
 		resp := make(chan *payload.Payload)
 
 		go func() {
-			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		}()
 
 		for range resp {
@@ -531,7 +527,7 @@ func Benchmark_StreamPipe_Worker_ExecEcho4(b *testing.B) {
 		resp := make(chan *payload.Payload)
 
 		go func() {
-			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		}()
 
 		for range resp {
@@ -559,7 +555,7 @@ func Benchmark_StreamPipe_Worker_ExecEchoWithoutContext2(b *testing.B) {
 		resp := make(chan *payload.Payload)
 
 		go func() {
-			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+			_ = sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		}()
 
 		for range resp {
@@ -593,7 +589,7 @@ func Test_StreamEcho2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -630,7 +626,7 @@ func Test_StreamBadPayload2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{}, resp)
+		errS := sw.ExecStream(&payload.Payload{}, resp, nil)
 		assert.Error(t, errS)
 		assert.Contains(t, errS.Error(), "payload can not be empty")
 	}()
@@ -664,7 +660,7 @@ func Test_StreamEcho_Slow2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -693,7 +689,7 @@ func Test_StreamBroken2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 	}()
 
@@ -730,7 +726,7 @@ func Test_StreamError2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.Error(t, errS)
 		require.True(t, errors.Is(errors.SoftJob, errS))
 		assert.Contains(t, errS.Error(), "hello")
@@ -765,7 +761,7 @@ func Test_StreamNumExecs2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -781,7 +777,7 @@ func Test_StreamNumExecs2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 
@@ -796,7 +792,7 @@ func Test_StreamNumExecs2(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errS := sw.ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		assert.NoError(t, errS)
 	}()
 

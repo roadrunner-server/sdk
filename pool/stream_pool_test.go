@@ -36,7 +36,7 @@ func Test_StreamPool_Echo(t *testing.T) {
 
 	resp := make(chan *payload.Payload)
 	go func() {
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for {
@@ -73,7 +73,7 @@ func Test_StreamPool_Echo_NilContext(t *testing.T) {
 
 	resp := make(chan *payload.Payload)
 	go func() {
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello"), Context: nil}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello"), Context: nil}, resp, nil))
 	}()
 
 	for {
@@ -110,7 +110,7 @@ func Test_StreamPool_Echo_Context(t *testing.T) {
 
 	resp := make(chan *payload.Payload)
 	go func() {
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello"), Context: []byte("world")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello"), Context: []byte("world")}, resp, nil))
 	}()
 
 	for {
@@ -149,7 +149,7 @@ func Test_StreamPool_JobError(t *testing.T) {
 	resp := make(chan *payload.Payload)
 	go func() {
 		defer wg.Done()
-		errExec := p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+		errExec := p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 		require.Error(t, errExec)
 
 		require.True(t, errors.Is(errors.SoftJob, errExec))
@@ -183,7 +183,7 @@ func Test_StreamPool_Broken_Replace(t *testing.T) {
 	resp := make(chan *payload.Payload)
 	go func() {
 		defer wg.Done()
-		require.Error(t, p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")}, resp))
+		require.Error(t, p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")}, resp, nil))
 
 		for {
 			select {
@@ -226,7 +226,7 @@ func Test_StreamPool_Broken_FromOutside(t *testing.T) {
 	resp := make(chan *payload.Payload)
 	go func() {
 		defer wg.Done()
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for {
@@ -293,7 +293,7 @@ func Test_StreamPool_Replace_Worker(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for res := range resp {
@@ -306,7 +306,7 @@ func Test_StreamPool_Replace_Worker(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop))
+			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop, nil))
 		}()
 
 		for res := range respLoop {
@@ -351,7 +351,7 @@ func Test_StreamPool_Debug_Worker(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for res := range resp {
@@ -366,7 +366,7 @@ func Test_StreamPool_Debug_Worker(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop))
+			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop, nil))
 		}()
 
 		for res := range respLoop {
@@ -411,7 +411,7 @@ func Test_StreamPool_Stop_Worker(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for res := range resp {
@@ -424,7 +424,7 @@ func Test_StreamPool_Stop_Worker(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop))
+			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, respLoop, nil))
 		}()
 
 		for res := range respLoop {
@@ -465,7 +465,7 @@ func Test_Stream_Pool_Destroy_And_Close(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.Error(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.Error(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	wg.Wait()
@@ -492,7 +492,7 @@ func Test_Stream_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 	go func() {
 		resp := make(chan *payload.Payload)
 		go func() {
-			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("100")}, resp))
+			require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("100")}, resp, nil))
 		}()
 	}()
 	time.Sleep(time.Millisecond * 100)
@@ -504,7 +504,7 @@ func Test_Stream_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.Error(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("100")}, resp))
+		require.Error(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("100")}, resp, nil))
 	}()
 
 	wg.Wait()
@@ -537,7 +537,7 @@ func Test_Stream_Pool_Handle_Dead(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+		require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 	}()
 
 	for range resp {
@@ -574,7 +574,7 @@ func Test_StreamPool_NoFreeWorkers(t *testing.T) {
 		go func() {
 			ctxNew, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
-			_ = p.(pool.Streamer).ExecStreamWithTTL(ctxNew, &payload.Payload{Body: []byte("hello")}, resp)
+			_ = p.(pool.Streamer).ExecStreamWithTTL(ctxNew, &payload.Payload{Body: []byte("hello")}, resp, nil)
 		}()
 	}()
 
@@ -584,7 +584,7 @@ func Test_StreamPool_NoFreeWorkers(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.Error(t, p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{Body: []byte("hello")}, resp2))
+		require.Error(t, p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{Body: []byte("hello")}, resp2, nil))
 	}()
 
 	for range resp2 {
@@ -623,7 +623,7 @@ func Test_StreamPool_QueueSize(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp))
+				require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 			}()
 
 			wg.Wait()
@@ -684,7 +684,7 @@ func Benchmark_StreamPool_Echo(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		resp := make(chan *payload.Payload, 1)
 		go func() {
-			errS := p.(pool.Streamer).ExecStream(pld, resp)
+			errS := p.(pool.Streamer).ExecStream(pld, resp, nil)
 			if errS != nil {
 				b.Fail()
 			}
@@ -733,7 +733,7 @@ func Benchmark_StreamPool_Echo_Batched(b *testing.B) {
 			defer wg.Done()
 			resp := make(chan *payload.Payload, 1)
 			go func() {
-				errS := p.(pool.Streamer).ExecStream(pld, resp)
+				errS := p.(pool.Streamer).ExecStream(pld, resp, nil)
 				if errS != nil {
 					b.Fail()
 				}
@@ -771,7 +771,7 @@ func Benchmark_Stream_Pool_Echo_Replaced(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		resp := make(chan *payload.Payload, 1)
 		go func() {
-			errS := p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp)
+			errS := p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil)
 			if errS != nil {
 				b.Fail()
 			}

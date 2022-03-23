@@ -489,7 +489,7 @@ func TestStreamSupervisedPool_Exec(t *testing.T) {
 			errStr := p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{
 				Context: []byte(""),
 				Body:    []byte("foo"),
-			}, resp)
+			}, resp, nil)
 			assert.NoError(t, errStr)
 		}()
 
@@ -541,7 +541,7 @@ func TestStreamSupervisedPool_ExecWithDebugMode(t *testing.T) {
 			errStr := p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{
 				Context: []byte(""),
 				Body:    []byte("foo"),
-			}, resp)
+			}, resp, nil)
 			assert.NoError(t, errStr)
 		}()
 
@@ -592,7 +592,7 @@ func TestStreamSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStreamWithTTL(ctxNew, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, resp)
+		}, resp, nil)
 		require.Error(t, errStr)
 	}()
 
@@ -635,7 +635,7 @@ func TestStreamSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -658,7 +658,7 @@ func TestStreamSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStreamWithTTL(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh2)
+		}, respCh2, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -712,7 +712,7 @@ func TestStreamSupervisedPool_Idle(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -733,7 +733,7 @@ func TestStreamSupervisedPool_Idle(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh2)
+		}, respCh2, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -790,7 +790,7 @@ func TestStreamSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -850,7 +850,7 @@ func TestStreamSupervisedPool_ExecTTL_OK(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -903,7 +903,7 @@ func TestStreamSupervisedPool_MaxMemoryReached(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
@@ -951,7 +951,7 @@ func TestStreamSupervisedPool_AllocateFailedOK(t *testing.T) {
 		errStr := p.(pool.Streamer).ExecStream(&payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh1)
+		}, respCh1, nil)
 		require.NoError(t, errStr)
 	}()
 
