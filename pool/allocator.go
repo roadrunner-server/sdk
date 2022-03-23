@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command) worker.Allocator {
+func (sp *Pool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command) worker.Allocator {
 	return func() (worker.BaseProcess, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -30,7 +30,7 @@ func (sp *StaticPool) newPoolAllocator(ctx context.Context, timeout time.Duratio
 }
 
 // allocate required number of stack
-func (sp *StaticPool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
+func (sp *Pool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
 	const op = errors.Op("static_pool_allocate_workers")
 
 	workers := make([]worker.BaseProcess, numWorkers)

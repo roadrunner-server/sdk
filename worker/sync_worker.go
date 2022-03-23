@@ -15,18 +15,19 @@ import (
 )
 
 // Allocator is responsible for worker allocation in the pool
-type Allocator func() (worker.SyncWorker, error)
+type Allocator func() (worker.Worker, error)
 
-type SyncWorkerImpl struct {
-	process worker.BaseProcess
-	fPool   sync.Pool
-	bPool   sync.Pool
-	chPool  sync.Pool
+type Worker struct {
+	process    worker.BaseProcess
+	fPool      sync.Pool
+	bPool      sync.Pool
+	chPool     sync.Pool
+	respChPool sync.Pool
 }
 
 // From creates SyncWorker from BaseProcess
-func From(process worker.BaseProcess) *SyncWorkerImpl {
-	return &SyncWorkerImpl{
+func From(process worker.BaseProcess) *Worker {
+	return &Worker{
 		process: process,
 		fPool: sync.Pool{New: func() interface{} {
 			return frame.NewFrame()
@@ -38,11 +39,14 @@ func From(process worker.BaseProcess) *SyncWorkerImpl {
 		chPool: sync.Pool{New: func() interface{} {
 			return make(chan wexec, 1)
 		}},
+		respChPool: sync.Pool{New: func() interface{} {
+			return make(chan *payload.Payload)
+		}},
 	}
 }
 
 // Exec payload without TTL timeout.
-func (tw *SyncWorkerImpl) Exec(p *payload.Payload) (*payload.Payload, error) {
+func (tw *Worker) Exec(p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("sync_worker_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
@@ -58,7 +62,7 @@ func (tw *SyncWorkerImpl) Exec(p *payload.Payload) (*payload.Payload, error) {
 	tw.process.State().Set(worker.StateWorking)
 
 	rsp, err := tw.execPayload(p)
-	if err != nil {
+	if err != nil && !errors.Is(errors.Stop, err) {
 		// just to be more verbose
 		if !errors.Is(errors.SoftJob, err) {
 			tw.process.State().Set(worker.StateErrored)
@@ -86,7 +90,7 @@ type wexec struct {
 }
 
 // ExecWithTTL executes payload without TTL timeout.
-func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+func (tw *Worker) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("sync_worker_exec_worker_with_timeout")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
@@ -154,7 +158,49 @@ func (tw *SyncWorkerImpl) ExecWithTTL(ctx context.Context, p *payload.Payload) (
 	}
 }
 
-func (tw *SyncWorkerImpl) execPayload(p *payload.Payload) (*payload.Payload, error) {
+func (tw *Worker) String() string {
+	return tw.process.String()
+}
+
+func (tw *Worker) Pid() int64 {
+	return tw.process.Pid()
+}
+
+func (tw *Worker) Created() time.Time {
+	return tw.process.Created()
+}
+
+func (tw *Worker) State() worker.State {
+	return tw.process.State()
+}
+
+func (tw *Worker) Start() error {
+	return tw.process.Start()
+}
+
+func (tw *Worker) Wait() error {
+	return tw.process.Wait()
+}
+
+func (tw *Worker) Stop() error {
+	return tw.process.Stop()
+}
+
+func (tw *Worker) Kill() error {
+	return tw.process.Kill()
+}
+
+func (tw *Worker) Relay() relay.Relay {
+	return tw.process.Relay()
+}
+
+func (tw *Worker) AttachRelay(rl relay.Relay) {
+	tw.process.AttachRelay(rl)
+}
+
+// Private
+
+func (tw *Worker) execPayload(p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("sync_worker_exec_payload")
 
 	// get a frame
@@ -228,71 +274,29 @@ func (tw *SyncWorkerImpl) execPayload(p *payload.Payload) (*payload.Payload, err
 	return pld, nil
 }
 
-func (tw *SyncWorkerImpl) String() string {
-	return tw.process.String()
-}
-
-func (tw *SyncWorkerImpl) Pid() int64 {
-	return tw.process.Pid()
-}
-
-func (tw *SyncWorkerImpl) Created() time.Time {
-	return tw.process.Created()
-}
-
-func (tw *SyncWorkerImpl) State() worker.State {
-	return tw.process.State()
-}
-
-func (tw *SyncWorkerImpl) Start() error {
-	return tw.process.Start()
-}
-
-func (tw *SyncWorkerImpl) Wait() error {
-	return tw.process.Wait()
-}
-
-func (tw *SyncWorkerImpl) Stop() error {
-	return tw.process.Stop()
-}
-
-func (tw *SyncWorkerImpl) Kill() error {
-	return tw.process.Kill()
-}
-
-func (tw *SyncWorkerImpl) Relay() relay.Relay {
-	return tw.process.Relay()
-}
-
-func (tw *SyncWorkerImpl) AttachRelay(rl relay.Relay) {
-	tw.process.AttachRelay(rl)
-}
-
-// Private
-
-func (tw *SyncWorkerImpl) get() *bytes.Buffer {
+func (tw *Worker) get() *bytes.Buffer {
 	return tw.bPool.Get().(*bytes.Buffer)
 }
 
-func (tw *SyncWorkerImpl) put(b *bytes.Buffer) {
+func (tw *Worker) put(b *bytes.Buffer) {
 	b.Reset()
 	tw.bPool.Put(b)
 }
 
-func (tw *SyncWorkerImpl) getFrame() *frame.Frame {
+func (tw *Worker) getFrame() *frame.Frame {
 	return tw.fPool.Get().(*frame.Frame)
 }
 
-func (tw *SyncWorkerImpl) putFrame(f *frame.Frame) {
+func (tw *Worker) putFrame(f *frame.Frame) {
 	f.Reset()
 	tw.fPool.Put(f)
 }
 
-func (tw *SyncWorkerImpl) getCh() chan wexec {
+func (tw *Worker) getCh() chan wexec {
 	return tw.chPool.Get().(chan wexec)
 }
 
-func (tw *SyncWorkerImpl) putCh(ch chan wexec) {
+func (tw *Worker) putCh(ch chan wexec) {
 	// just check if the chan is not empty
 	select {
 	case <-ch:

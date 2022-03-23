@@ -67,7 +67,7 @@ func SendControl(rl relay.Relay, payload interface{}) error {
 	// we don't need a copy here, because frame copy the data before send
 	err = rl.Send(fr)
 	if err != nil {
-		return errors.E(errors.FileNotFound, err)
+		return err
 	}
 
 	return nil

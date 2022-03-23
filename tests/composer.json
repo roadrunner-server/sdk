@@ -1,12 +1,14 @@
 {
-    "minimum-stability": "beta",
+    "minimum-stability": "dev",
     "prefer-stable": true,
     "require": {
         "nyholm/psr7": "^1.4",
         "spiral/roadrunner": "^2.0",
-        "spiral/roadrunner-http": "^2.0",
+        "spiral/roadrunner-http": "^2.1",
+        "spiral/roadrunner-worker": "^2.2",
         "temporal/sdk": ">=1.0",
         "spiral/tokenizer": ">=2.7",
+        "spiral/goridge": "^3.2",
         "spiral/roadrunner-metrics": "^2.0"
     },
     "autoload": {

@@ -8,7 +8,6 @@ import (
 	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/roadrunner-server/api/v2/pool"
 	"github.com/roadrunner-server/api/v2/worker"
-	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/state/process"
 	"go.uber.org/zap"
@@ -41,29 +40,29 @@ func supervisorWrapper(pool pool.Pool, log *zap.Logger, cfg *SupervisorConfig) *
 	return sp
 }
 
-func (sp *supervised) ExecWithTTL(_ context.Context, _ *payload.Payload) (*payload.Payload, error) {
-	panic("used to satisfy pool interface")
+func (sp *supervised) ExecWithTTL(ctx context.Context, pld *payload.Payload) (*payload.Payload, error) {
+	if sp.cfg.ExecTTL == 0 {
+		sp.log.Warn("incorrect supervisor ExecWithTTL method usage. ExecTTL should be set. Fallback to the pool.Exec method")
+		return sp.pool.Exec(pld)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, sp.cfg.ExecTTL)
+	defer cancel()
+
+	res, err := sp.pool.ExecWithTTL(ctx, pld)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
+	return sp.pool.Exec(rqs)
 }
 
 func (sp *supervised) Reset(ctx context.Context) error {
 	return sp.pool.Reset(ctx)
-}
-
-func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("supervised_exec_with_context")
-	if sp.cfg.ExecTTL == 0 {
-		return sp.pool.Exec(rqs)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), sp.cfg.ExecTTL)
-	defer cancel()
-
-	res, err := sp.pool.ExecWithTTL(ctx, rqs)
-	if err != nil {
-		return nil, errors.E(op, err)
-	}
-
-	return res, nil
 }
 
 func (sp *supervised) GetConfig() interface{} {
@@ -80,6 +79,7 @@ func (sp *supervised) QueueSize() uint64 {
 		return queuer.QueueSize()
 	}
 
+	sp.log.Warn("not implemented")
 	return 0
 }
 
