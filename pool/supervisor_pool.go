@@ -58,6 +58,10 @@ func (sp *supervised) ExecWithTTL(ctx context.Context, pld *payload.Payload) (*p
 }
 
 func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
+	// to be compatible with the old behavior where we only used an Exec method
+	if sp.cfg.ExecTTL != 0 {
+		return sp.ExecWithTTL(context.Background(), rqs)
+	}
 	return sp.pool.Exec(rqs)
 }
 
