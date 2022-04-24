@@ -6,6 +6,7 @@ import (
 
 	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_NotStarted_String(t *testing.T) {
@@ -20,12 +21,11 @@ func Test_NotStarted_String(t *testing.T) {
 func Test_NotStarted_Exec(t *testing.T) {
 	cmd := exec.Command("php", "tests/client.php", "echo", "pipes")
 
-	w, _ := InitBaseWorker(cmd)
-
+	w, err := InitBaseWorker(cmd)
+	require.NoError(t, err)
 	sw := From(w)
 
 	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
-
 	assert.Error(t, err)
 	assert.Nil(t, res)
 

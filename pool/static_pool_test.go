@@ -129,6 +129,29 @@ func Test_StaticPool_Echo(t *testing.T) {
 	assert.Equal(t, "hello", res.String())
 }
 
+func Test_StaticPool_FastCancel(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewStaticPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		testCfg,
+		log,
+	)
+	assert.NoError(t, err)
+	defer p.Destroy(ctx)
+
+	assert.NotNil(t, p)
+
+	newCtx, cancel := context.WithTimeout(ctx, time.Nanosecond)
+	defer cancel()
+	res, err := p.ExecWithTTL(newCtx, &payload.Payload{Body: []byte("hello")})
+
+	assert.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
 func Test_StaticPool_Echo_NilContext(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(

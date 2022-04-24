@@ -144,6 +144,10 @@ func (tw *Worker) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 	// exec TTL reached
 	case <-ctx.Done():
 		err := multierr.Combine(tw.Kill())
+		// we should wait for the exit from the worker
+		// 'c' channel here should return an error or nil
+		// because the goroutine holds the payload pointer (from the sync.Pool)
+		<-c
 		if err != nil {
 			// append timeout error
 			err = multierr.Append(err, errors.E(op, errors.ExecTTL))

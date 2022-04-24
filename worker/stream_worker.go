@@ -68,8 +68,7 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 		return errors.E(op, errors.Str("payload can not be empty"))
 	}
 
-	c := tw.getCh()
-	defer tw.putCh(c)
+	errCh := make(chan error, 1)
 
 	// worker was killed before it started to work (supervisor)
 	if tw.process.State().Value() != worker.StateReady {
@@ -88,42 +87,41 @@ func (tw *Worker) ExecStreamWithTTL(ctx context.Context, p *payload.Payload, res
 				tw.process.State().Set(worker.StateErrored)
 				tw.process.State().RegisterExec()
 			}
-			c <- wexec{
-				err: err,
-			}
+
+			errCh <- err
 			return
 		}
 
 		if tw.process.State().Value() != worker.StateWorking {
 			tw.process.State().RegisterExec()
-			c <- wexec{
-				err: err,
-			}
+			errCh <- err
 			return
 		}
 
 		tw.process.State().Set(worker.StateReady)
 		tw.process.State().RegisterExec()
 
-		c <- wexec{
-			err: err,
-		}
+		errCh <- err
 	}()
 
 	select {
 	// exec TTL reached
 	case <-ctx.Done():
 		err := multierr.Combine(tw.Kill())
+		// we should wait for the exit from the worker
+		// 'errCh' channel here should return an error or nil
+		// because the goroutine holds the payload pointer (from the sync.Pool)
+		<-errCh
 		if err != nil {
 			// append timeout error
 			err = multierr.Append(err, errors.E(op, errors.ExecTTL))
 			return multierr.Append(err, ctx.Err())
 		}
 		return errors.E(op, errors.ExecTTL, ctx.Err())
-	case res := <-c:
-		if res.err != nil {
+	case err := <-errCh:
+		if err != nil {
 			// nil or stop request
-			return res.err
+			return err
 		}
 		return nil
 	}
