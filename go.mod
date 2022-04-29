@@ -6,7 +6,7 @@ require (
 	github.com/goccy/go-json v0.9.7
 	github.com/google/uuid v1.3.0
 	github.com/prometheus/client_golang v1.12.1
-	github.com/roadrunner-server/api/v2 v2.14.0
+	github.com/roadrunner-server/api/v2 v2.17.0
 	// spiral
 	github.com/roadrunner-server/errors v1.1.2
 	github.com/roadrunner-server/goridge/v3 v3.4.1
@@ -34,7 +34,7 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
+	golang.org/x/sys v0.0.0-20220429121018-84afa8d3f7b3 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
