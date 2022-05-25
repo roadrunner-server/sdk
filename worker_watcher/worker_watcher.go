@@ -392,6 +392,6 @@ func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
 	}()
 }
 
-func ptrTo(val uint64) *uint64 {
+func ptrTo[T any](val T) *T {
 	return &val
 }
