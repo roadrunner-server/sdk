@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/roadrunner-server/api/v2/event_bus"
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
@@ -36,6 +37,8 @@ type workerWatcher struct {
 	numWorkers *uint64
 	stopped    *uint64
 
+	eventBus event_bus.EventBus
+
 	workers []worker.BaseProcess
 	log     *zap.Logger
 
@@ -45,10 +48,12 @@ type workerWatcher struct {
 
 // NewSyncWorkerWatcher is a constructor for the Watcher
 func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *workerWatcher {
+	eb, _ := events.Bus()
 	return &workerWatcher{
 		container: channel.NewVector(numWorkers),
 
-		log: log,
+		log:      log,
+		eventBus: eb,
 		// pass a ptr to the number of workers to avoid blocking in the TTL loop
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
@@ -363,6 +368,9 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 		ww.log.Debug("worker destroyed", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
 		return
 	}
+
+	// this event used mostly for the temporal plugin
+	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", "process exited"))
 
 	// set state as stopped
 	w.State().Set(worker.StateStopped)
