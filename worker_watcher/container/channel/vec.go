@@ -10,7 +10,9 @@ import (
 )
 
 type Vec struct {
-	sync.RWMutex
+	rwm sync.RWMutex
+	// container size
+	len uint64
 	// destroy signal
 	destroy uint64
 	// channel with the workers
@@ -19,6 +21,7 @@ type Vec struct {
 
 func NewVector(len uint64) *Vec {
 	vec := &Vec{
+		len:     len,
 		destroy: 0,
 		workers: make(chan worker.BaseProcess, len),
 	}
@@ -36,8 +39,8 @@ func (v *Vec) Push(w worker.BaseProcess) {
 		// but presenting in the channel
 	default:
 		// Stop Pop operations
-		v.Lock()
-		defer v.Unlock()
+		v.rwm.Lock()
+		defer v.rwm.Unlock()
 
 		/*
 			we can be in the default branch by the following reasons:
@@ -111,8 +114,8 @@ func (v *Vec) Pop(ctx context.Context) (worker.BaseProcess, error) {
 	}
 
 	// used only for the TTL-ed workers
-	v.RLock()
-	defer v.RUnlock()
+	v.rwm.RLock()
+	defer v.rwm.RUnlock()
 
 	select {
 	case w := <-v.workers:
@@ -120,6 +123,10 @@ func (v *Vec) Pop(ctx context.Context) (worker.BaseProcess, error) {
 	case <-ctx.Done():
 		return nil, errors.E(ctx.Err(), errors.NoFreeWorkers)
 	}
+}
+
+func (v *Vec) Reset() {
+	atomic.StoreUint64(&v.destroy, 0)
 }
 
 func (v *Vec) Destroy() {
