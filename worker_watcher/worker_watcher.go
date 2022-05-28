@@ -25,6 +25,7 @@ type Vector interface {
 	Remove(pid int64)
 	// Destroy used to stop releasing the workers
 	Destroy()
+	Reset()
 
 	// TODO(rustatian) Add Replace method, and remove `Remove` method. Replace will do removal and allocation
 	// Replace(prevPid int64, newWorker worker.BaseProcess)
@@ -84,6 +85,7 @@ func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 	const op = errors.Op("worker_watcher_get_free_worker")
 	// thread safe operation
 	w, err := ww.container.Pop(ctx)
+
 	if err != nil {
 		if errors.Is(errors.WatcherStopped, err) {
 			return nil, errors.E(op, errors.WatcherStopped)
@@ -227,7 +229,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 	ww.container.Destroy()
 	ww.Unlock()
 
-	tt := time.NewTicker(time.Millisecond * 10)
+	tt := time.NewTicker(time.Millisecond * 100)
 	defer tt.Stop()
 	for {
 		select {
@@ -239,7 +241,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 				continue
 			}
 			ww.RUnlock()
-			// All container at this moment are in the container
+			// All workers at this moment are in the container
 			// Pop operation is blocked, push can't be done, since it's not possible to pop
 			ww.Lock()
 
@@ -252,7 +254,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			}
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
-			ww.container = channel.NewVector(atomic.LoadUint64(ww.numWorkers))
+			ww.container.Reset()
 			ww.Unlock()
 			return
 		case <-ctx.Done():
@@ -267,7 +269,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			}
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
-			ww.container = channel.NewVector(atomic.LoadUint64(ww.numWorkers))
+			ww.container.Reset()
 			ww.Unlock()
 		}
 	}

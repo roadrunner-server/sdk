@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	l "log"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -43,6 +44,53 @@ func Test_NewPool(t *testing.T) {
 	defer p.Destroy(ctx)
 
 	assert.NotNil(t, p)
+}
+
+func Test_Poll_Reallocate(t *testing.T) {
+	var testCfg2 = &Config{
+		NumWorkers:      1,
+		AllocateTimeout: time.Second * 500,
+		DestroyTimeout:  time.Second * 500,
+	}
+
+	logDev, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	p, err := NewStaticPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		testCfg2,
+		logDev,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	require.NoError(t, os.Rename("../tests/client.php", "../tests/client.bak"))
+
+	go func() {
+		for i := 0; i < 50; i++ {
+			time.Sleep(time.Millisecond * 100)
+			_, errResp := p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
+			require.NoError(t, errResp)
+		}
+		wg.Done()
+	}()
+
+	_ = p.Workers()[0].Kill()
+
+	time.Sleep(time.Second * 5)
+	require.NoError(t, os.Rename("../tests/client.bak", "../tests/client.php"))
+
+	wg.Wait()
+
+	t.Cleanup(func() {
+		p.Destroy(ctx)
+	})
 }
 
 func Test_NewPoolReset(t *testing.T) {
