@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
@@ -15,6 +16,8 @@ type Vec struct {
 	len uint64
 	// destroy signal
 	destroy uint64
+	// reset signal
+	reset uint64
 	// channel with the workers
 	workers chan worker.BaseProcess
 }
@@ -23,6 +26,7 @@ func NewVector(len uint64) *Vec {
 	vec := &Vec{
 		len:     len,
 		destroy: 0,
+		reset:   0,
 		workers: make(chan worker.BaseProcess, len),
 	}
 
@@ -101,6 +105,7 @@ func (v *Vec) Push(w worker.BaseProcess) {
 func (v *Vec) Remove(_ int64) {}
 
 func (v *Vec) Pop(ctx context.Context) (worker.BaseProcess, error) {
+	// remove all workers and return
 	if atomic.LoadUint64(&v.destroy) == 1 {
 		// drain channel
 		for {
@@ -113,21 +118,40 @@ func (v *Vec) Pop(ctx context.Context) (worker.BaseProcess, error) {
 		}
 	}
 
+	// wait for the reset to complete
+	for atomic.CompareAndSwapUint64(&v.reset, 1, 1) {
+		time.Sleep(time.Millisecond)
+	}
+
 	// used only for the TTL-ed workers
 	v.rwm.RLock()
+	defer v.rwm.RUnlock()
 
 	select {
 	case w := <-v.workers:
-		v.rwm.RUnlock()
 		return w, nil
 	case <-ctx.Done():
-		v.rwm.RUnlock()
 		return nil, errors.E(ctx.Err(), errors.NoFreeWorkers)
 	}
 }
 
+func (v *Vec) Drain() {
+	for {
+		select {
+		case <-v.workers:
+			continue
+		default:
+			return
+		}
+	}
+}
+
+func (v *Vec) ResetDone() {
+	atomic.StoreUint64(&v.reset, 0)
+}
+
 func (v *Vec) Reset() {
-	atomic.StoreUint64(&v.destroy, 0)
+	atomic.StoreUint64(&v.reset, 1)
 }
 
 func (v *Vec) Destroy() {

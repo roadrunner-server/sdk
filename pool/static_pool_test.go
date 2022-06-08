@@ -95,11 +95,18 @@ func Test_Poll_Reallocate(t *testing.T) {
 
 func Test_NewPoolReset(t *testing.T) {
 	ctx := context.Background()
+
+	var testCfg2 = &Config{
+		NumWorkers:      1,
+		AllocateTimeout: time.Second * 500,
+		DestroyTimeout:  time.Second * 500,
+	}
+
 	p, err := NewStaticPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
-		testCfg,
+		testCfg2,
 		log,
 	)
 	assert.NoError(t, err)
@@ -110,8 +117,28 @@ func Test_NewPoolReset(t *testing.T) {
 		t.Fatal("should be workers inside")
 	}
 
+	pld, err := p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
+	require.NoError(t, err)
+	require.NotNil(t, pld.Body)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		for i := 0; i < 100; i++ {
+			pldG, errG := p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
+			require.NoError(t, errG)
+			require.NotNil(t, pldG.Body)
+		}
+
+		wg.Done()
+	}()
+
 	pid := w[0].Pid()
 	require.NoError(t, p.Reset(context.Background()))
+
+	pld, err = p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
+	require.NoError(t, err)
+	require.NotNil(t, pld.Body)
 
 	w2 := p.Workers()
 	if len(w2) == 0 {
@@ -119,6 +146,7 @@ func Test_NewPoolReset(t *testing.T) {
 	}
 
 	require.NotEqual(t, pid, w2[0].Pid())
+	wg.Wait()
 	p.Destroy(ctx)
 }
 
@@ -391,11 +419,12 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	var lastPID string
 	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
 
-	res, _ := p.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := p.Exec(&payload.Payload{Body: []byte("hello")})
 	require.Equal(t, lastPID, string(res.Body))
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		res, err := p.Exec(&payload.Payload{Body: []byte("hello")})
+		res, err = p.Exec(&payload.Payload{Body: []byte("hello")})
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.NotNil(t, res.Body)
