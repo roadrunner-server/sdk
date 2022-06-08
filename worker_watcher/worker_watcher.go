@@ -15,8 +15,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Vector interface represents vector container
-type Vector interface {
+// Vector interface represents vector container (internal)
+type vector interface {
 	// Push used to put worker to the vector
 	Push(worker.BaseProcess)
 	// Pop used to get worker from the vector
@@ -25,7 +25,12 @@ type Vector interface {
 	Remove(pid int64)
 	// Destroy used to stop releasing the workers
 	Destroy()
+	// Reset used to reset the internal ww state
 	Reset()
+	// ResetDone used to finish the reset operation
+	ResetDone()
+	// Drain used to remove all workers from the underlying container
+	Drain()
 
 	// TODO(rustatian) Add Replace method, and remove `Remove` method. Replace will do removal and allocation
 	// Replace(prevPid int64, newWorker worker.BaseProcess)
@@ -33,7 +38,7 @@ type Vector interface {
 
 type workerWatcher struct {
 	sync.RWMutex
-	container Vector
+	container vector
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
 	stopped    *uint64
@@ -83,6 +88,7 @@ func (ww *workerWatcher) Watch(workers []worker.BaseProcess) error {
 // Take is not a thread safe operation
 func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 	const op = errors.Op("worker_watcher_get_free_worker")
+	// we need lock here to prevent Pop operation when ww in the resetting state
 	// thread safe operation
 	w, err := ww.container.Pop(ctx)
 
@@ -226,10 +232,10 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	ww.Lock()
 	// do not release new workers
-	ww.container.Destroy()
+	ww.container.Reset()
 	ww.Unlock()
 
-	tt := time.NewTicker(time.Millisecond * 100)
+	tt := time.NewTicker(time.Millisecond * 10)
 	defer tt.Stop()
 	for {
 		select {
@@ -246,7 +252,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			ww.Lock()
 
 			// drain channel
-			_, _ = ww.container.Pop(ctx)
+			ww.container.Drain()
 			for i := 0; i < len(ww.workers); i++ {
 				ww.workers[i].State().Set(worker.StateDestroyed)
 				// kill the worker
@@ -254,12 +260,12 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			}
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
-			ww.container.Reset()
+			ww.container.ResetDone()
 			ww.Unlock()
 			return
 		case <-ctx.Done():
 			// drain channel
-			_, _ = ww.container.Pop(ctx)
+			ww.container.Drain()
 			// kill workers
 			ww.Lock()
 			for i := 0; i < len(ww.workers); i++ {
@@ -269,7 +275,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			}
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
-			ww.container.Reset()
+			ww.container.ResetDone()
 			ww.Unlock()
 		}
 	}
