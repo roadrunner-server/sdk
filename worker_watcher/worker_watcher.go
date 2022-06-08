@@ -25,6 +25,7 @@ type Vector interface {
 	Remove(pid int64)
 	// Destroy used to stop releasing the workers
 	Destroy()
+	// Reset used to reset the internal ww state
 	Reset()
 
 	// TODO(rustatian) Add Replace method, and remove `Remove` method. Replace will do removal and allocation
@@ -83,8 +84,11 @@ func (ww *workerWatcher) Watch(workers []worker.BaseProcess) error {
 // Take is not a thread safe operation
 func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 	const op = errors.Op("worker_watcher_get_free_worker")
+	// we need lock here to prevent Pop operation when ww in the resetting state
+	ww.RLock()
 	// thread safe operation
 	w, err := ww.container.Pop(ctx)
+	ww.RUnlock()
 
 	if err != nil {
 		if errors.Is(errors.WatcherStopped, err) {
@@ -229,7 +233,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 	ww.container.Destroy()
 	ww.Unlock()
 
-	tt := time.NewTicker(time.Millisecond * 100)
+	tt := time.NewTicker(time.Millisecond * 10)
 	defer tt.Stop()
 	for {
 		select {

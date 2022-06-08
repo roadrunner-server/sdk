@@ -115,12 +115,13 @@ func (v *Vec) Pop(ctx context.Context) (worker.BaseProcess, error) {
 
 	// used only for the TTL-ed workers
 	v.rwm.RLock()
-	defer v.rwm.RUnlock()
 
 	select {
 	case w := <-v.workers:
+		v.rwm.RUnlock()
 		return w, nil
 	case <-ctx.Done():
+		v.rwm.RUnlock()
 		return nil, errors.E(ctx.Err(), errors.NoFreeWorkers)
 	}
 }
