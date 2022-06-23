@@ -84,7 +84,7 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 		buf := make([]byte, 65536)
 		errCopy := copyBuffer(w, rc, buf)
 		if errCopy != nil {
-			w.log.Error("stderr", zap.Error(errCopy), zap.String("WARNING", "worker pipe has broken; use `./rr reset` to restart RR workers"))
+			w.log.Debug("stderr", zap.Error(errCopy))
 		}
 	}()
 
