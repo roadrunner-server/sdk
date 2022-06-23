@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -72,7 +73,20 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	}
 
 	// set self as stderr implementation (Writer interface)
-	w.cmd.Stderr = w
+	rc, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		// https://linux.die.net/man/7/pipe
+		// see pipe capacity
+		buf := make([]byte, 65536)
+		errCopy := copyBuffer(w, rc, buf)
+		if errCopy != nil {
+			w.log.Debug("stderr", zap.Error(errCopy))
+		}
+	}()
 
 	return w, nil
 }
@@ -229,8 +243,38 @@ func (w *Process) Kill() error {
 }
 
 // Worker stderr
-func (w *Process) Write(p []byte) (n int, err error) {
+func (w *Process) Write(p []byte) (int, error) {
 	// unsafe to use utils.AsString
 	w.log.Info(string(p))
 	return len(p), nil
+}
+
+// copyBuffer is the actual implementation of Copy and CopyBuffer.
+func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.Str("invalid write result")
+				}
+			}
+			if ew != nil {
+				return ew
+			}
+			if nr != nw {
+				return io.ErrShortWrite
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				return er
+			}
+			break
+		}
+	}
+
+	return nil
 }
