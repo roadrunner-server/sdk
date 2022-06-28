@@ -9,7 +9,7 @@ require (
 	github.com/roadrunner-server/api/v2 v2.18.0
 	// spiral
 	github.com/roadrunner-server/errors v1.1.2
-	github.com/roadrunner-server/goridge/v3 v3.4.2
+	github.com/roadrunner-server/goridge/v3 v3.4.4
 	github.com/roadrunner-server/tcplisten v1.1.2
 	// spiral
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -34,7 +34,7 @@ require (
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/sys v0.0.0-20220624220833-87e55d714810 // indirect
+	golang.org/x/sys v0.0.0-20220627191245-f75cf1eec38b // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
