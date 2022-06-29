@@ -3,7 +3,7 @@ module github.com/roadrunner-server/sdk/v2
 go 1.18
 
 require (
-	github.com/goccy/go-json v0.9.7
+	github.com/goccy/go-json v0.9.8
 	github.com/google/uuid v1.3.0
 	github.com/prometheus/client_golang v1.12.2
 	github.com/roadrunner-server/api/v2 v2.18.0
@@ -13,7 +13,7 @@ require (
 	github.com/roadrunner-server/tcplisten v1.1.2
 	// spiral
 	github.com/shirou/gopsutil v3.21.11+incompatible
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
