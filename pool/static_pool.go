@@ -21,12 +21,6 @@ const (
 	StopRequest = `{"stop":true}`
 )
 
-// ErrorEncoder encode error or make a decision based on the error type
-type ErrorEncoder func(err error, w worker.BaseProcess) (*payload.Payload, error)
-
-// StreamErrorEncoder encode error or make a decision based on the error type
-type StreamErrorEncoder func(err error, w worker.BaseProcess) error
-
 type Options func(p *Pool)
 
 type Command func(cmd string) *exec.Cmd
@@ -47,9 +41,6 @@ type Pool struct {
 
 	// allocate new worker
 	allocator worker.Allocator
-
-	// errEncoder is the default Exec error encoder
-	errEncoder ErrorEncoder
 
 	// exec queue size
 	queue uint64
@@ -77,8 +68,6 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf i
 		log:     log,
 		queue:   0,
 	}
-
-	p.errEncoder = defaultErrEncoder(p)
 
 	if p.log == nil {
 		z, err := zap.NewProduction()
@@ -158,7 +147,7 @@ begin:
 			goto begin
 		}
 
-		return sp.errEncoder(err, w)
+		return nil, sp.encodeErr(err, w)
 	}
 
 	// worker want's to be terminated
@@ -201,7 +190,7 @@ begin:
 			sp.ww.Release(w)
 			goto begin
 		}
-		return sp.errEncoder(err, w)
+		return nil, sp.encodeErr(err, w)
 	}
 
 	// worker want's to be terminated
@@ -244,55 +233,6 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func defaultErrEncoder(sp *Pool) ErrorEncoder {
-	return func(err error, w worker.BaseProcess) (*payload.Payload, error) {
-		// just push event if on any stage was timeout error
-		switch {
-		case errors.Is(errors.ExecTTL, err):
-			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "execTTL timeout elapsed"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventExecTTL.String()), zap.Error(err))
-			w.State().Set(worker.StateInvalid)
-			return nil, err
-
-		case errors.Is(errors.SoftJob, err):
-			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "worker error"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
-			// if max jobs exceed
-			if sp.cfg.MaxJobs != 0 && w.State().NumExecs() >= sp.cfg.MaxJobs {
-				// mark old as invalid and stop
-				w.State().Set(worker.StateInvalid)
-				errS := w.Stop()
-				if errS != nil {
-					return nil, errors.E(errors.SoftJob, errors.Errorf("err: %v\nerrStop: %v", err, errS))
-				}
-
-				return nil, err
-			}
-
-			// soft jobs errors are allowed, just put the worker back
-			sp.ww.Release(w)
-
-			return nil, err
-		case errors.Is(errors.Network, err):
-			// in case of network error, we can't stop the worker, we should kill it
-			w.State().Set(worker.StateInvalid)
-			sp.log.Warn("network error, worker will be restarted", zap.String("reason", "network"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
-			// kill the worker instead of sending net packet to it
-			_ = w.Kill()
-
-			return nil, err
-		default:
-			w.State().Set(worker.StateInvalid)
-			sp.log.Warn("worker will be restarted", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
-			// stop the worker, worker here might be in the broken state (network)
-			errS := w.Stop()
-			if errS != nil {
-				return nil, errors.E(errors.Errorf("err: %v\nerrStop: %v", err, errS))
-			}
-
-			return nil, err
-		}
-	}
 }
 
 func (sp *Pool) stopWorker(w worker.BaseProcess) {
