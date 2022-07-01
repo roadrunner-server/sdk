@@ -95,6 +95,9 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 		// used as a ping
 		_, err = internal.Pid(relay)
 		if err != nil {
+			go func() {
+				_ = w.Wait()
+			}()
 			_ = w.Kill()
 			select {
 			case spCh <- sr{
@@ -108,6 +111,9 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 			}
 		}
 
+		// everything ok, set ready state
+		w.State().Set(worker.StateReady)
+
 		select {
 		case
 		// return worker
@@ -115,8 +121,6 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 			w:   w,
 			err: nil,
 		}:
-			// everything ok, set ready state
-			w.State().Set(worker.StateReady)
 			return
 		default:
 			_ = w.Kill()

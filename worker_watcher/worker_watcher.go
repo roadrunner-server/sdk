@@ -15,33 +15,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Vector interface represents vector container (internal)
-type vector interface {
-	// Push used to put worker to the vector
-	Push(worker.BaseProcess)
-	// Pop used to get worker from the vector
-	Pop(ctx context.Context) (worker.BaseProcess, error)
-	// Remove worker with provided pid
-	Remove(pid int64)
-	// Destroy used to stop releasing the workers
-	Destroy()
-	// Reset used to reset the internal ww state
-	Reset()
-	// ResetDone used to finish the reset operation
-	ResetDone()
-	// Drain used to remove all workers from the underlying container
-	Drain()
-
-	// TODO(rustatian) Add Replace method, and remove `Remove` method. Replace will do removal and allocation
-	// Replace(prevPid int64, newWorker worker.BaseProcess)
-}
-
 type workerWatcher struct {
 	sync.RWMutex
-	container vector
+	// actually don't have a lot of impl here, so interface not needed
+	container *channel.Vec
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
-	stopped    *uint64
 
 	eventBus event_bus.EventBus
 
@@ -64,7 +43,6 @@ func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorker
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
 		workers:         make([]worker.BaseProcess, 0, numWorkers),
-		stopped:         ptrTo(uint64(0)),
 
 		allocator: allocator,
 	}
@@ -74,13 +52,11 @@ func (ww *workerWatcher) Watch(workers []worker.BaseProcess) error {
 	ww.Lock()
 	defer ww.Unlock()
 	for i := 0; i < len(workers); i++ {
-		ww.container.Push(workers[i])
+		ii := i
+		ww.container.Push(workers[ii])
 		// add worker to watch slice
-		ww.workers = append(ww.workers, workers[i])
-
-		go func(swc worker.BaseProcess) {
-			ww.wait(swc)
-		}(workers[i])
+		ww.workers = append(ww.workers, workers[ii])
+		ww.addToWatch(workers[ii])
 	}
 	return nil
 }
@@ -151,7 +127,7 @@ func (ww *workerWatcher) Allocate() error {
 	sw, err := ww.allocator()
 	if err != nil {
 		// log incident
-
+		ww.log.Error("allocate", zap.Error(err))
 		// if no timeout, return error immediately
 		if ww.allocateTimeout == 0 {
 			return errors.E(op, errors.WorkerAllocate, err)
@@ -229,7 +205,6 @@ func (ww *workerWatcher) Release(w worker.BaseProcess) {
 }
 
 func (ww *workerWatcher) Reset(ctx context.Context) {
-	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	ww.Lock()
 	// do not release new workers
 	ww.container.Reset()
@@ -241,8 +216,15 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 		select {
 		case <-tt.C:
 			ww.RLock()
+
+			if ww.container.Len() == 0 {
+				ww.RUnlock()
+				return
+			}
+
 			// that might be one of the workers is working
-			if atomic.LoadUint64(ww.numWorkers) != uint64(len(ww.workers)) {
+			// to proceed, all workers should be inside a channel
+			if atomic.LoadUint64(ww.numWorkers) != uint64(ww.container.Len()) {
 				ww.RUnlock()
 				continue
 			}
@@ -268,6 +250,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			ww.container.Drain()
 			// kill workers
 			ww.Lock()
+			// drain workers slice
 			for i := 0; i < len(ww.workers); i++ {
 				ww.workers[i].State().Set(worker.StateDestroyed)
 				// kill the worker
@@ -277,20 +260,20 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
+			return
 		}
 	}
 }
 
 // Destroy all underlying container (but let them complete the task)
 func (ww *workerWatcher) Destroy(ctx context.Context) {
-	atomic.StoreUint64(ww.stopped, 1)
-	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	ww.Lock()
 	// do not release new workers
 	ww.container.Destroy()
 	ww.Unlock()
 
 	tt := time.NewTicker(time.Millisecond * 10)
+	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	defer tt.Stop()
 	for {
 		select {
@@ -306,7 +289,7 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			}
 
 			// that might be one of the workers is working
-			if atomic.LoadUint64(ww.numWorkers) != uint64(len(ww.workers)) {
+			if atomic.LoadUint64(ww.numWorkers) != uint64(ww.container.Len()) {
 				ww.RUnlock()
 				continue
 			}
@@ -334,6 +317,7 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 				_ = ww.workers[i].Kill()
 			}
 			ww.Unlock()
+			return
 		}
 	}
 }
@@ -362,12 +346,6 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 		ww.log.Debug("worker stopped", zap.String("internal_event_name", events.EventWorkerWaitExit.String()), zap.Error(err))
 	}
 
-	// worker watcher stopped, just exit
-	// this can happen for the intensive allocations and destroys
-	if atomic.CompareAndSwapUint64(ww.stopped, 1, 1) {
-		return
-	}
-
 	// remove worker
 	ww.Remove(w)
 
@@ -380,14 +358,14 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 	// this event used mostly for the temporal plugin
 	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", "process exited"))
 
-	// set state as stopped
-	w.State().Set(worker.StateStopped)
-
 	err = ww.Allocate()
 	if err != nil {
 		ww.log.Error("failed to allocate the worker", zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
 
 		// no workers at all, panic
+		ww.Lock()
+		defer ww.Unlock()
+
 		if len(ww.workers) == 0 && atomic.LoadUint64(ww.numWorkers) == 0 {
 			panic(errors.E(op, errors.WorkerAllocate, errors.Errorf("can't allocate workers: %v, no workers in the pool", err)))
 		}
@@ -398,8 +376,4 @@ func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
 	go func() {
 		ww.wait(wb)
 	}()
-}
-
-func ptrTo[T any](val T) *T {
-	return &val
 }

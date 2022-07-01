@@ -209,7 +209,7 @@ func Test_StaticPool_FastCancel(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/sleep.php") },
 		pipe.NewPipeFactory(log),
 		testCfg,
 		log,
@@ -219,7 +219,7 @@ func Test_StaticPool_FastCancel(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	newCtx, cancel := context.WithTimeout(ctx, time.Nanosecond)
+	newCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	res, err := p.ExecWithTTL(newCtx, &payload.Payload{Body: []byte("hello")})
 

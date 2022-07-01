@@ -52,6 +52,16 @@ func (sp *Pool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, erro
 
 	err := eg.Wait()
 	if err != nil {
+		for j := 0; j < len(workers); j++ {
+			jj := j
+			if workers[jj] != nil {
+				go func() {
+					_ = workers[jj].Wait()
+				}()
+
+				_ = workers[jj].Kill()
+			}
+		}
 		return nil, err
 	}
 

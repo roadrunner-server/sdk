@@ -497,7 +497,9 @@ func Test_Stream_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 100)
 
-	p.Destroy(ctx)
+	ctx2, cancel := context.WithTimeout(ctx, time.Second*3)
+	defer cancel()
+	p.Destroy(ctx2)
 
 	resp := make(chan *payload.Payload)
 	wg := &sync.WaitGroup{}
@@ -626,9 +628,9 @@ func Test_StreamPool_QueueSize(t *testing.T) {
 				require.NoError(t, p.(pool.Streamer).ExecStream(&payload.Payload{Body: []byte("hello")}, resp, nil))
 			}()
 
-			wg.Wait()
 			for range resp {
 			}
+			wg.Wait()
 		}()
 	}
 
