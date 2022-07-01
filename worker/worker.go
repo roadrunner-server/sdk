@@ -225,7 +225,7 @@ func (w *Process) Stop() error {
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
 	if w.State().Value() == worker.StateDestroyed {
-		err := w.cmd.Process.Signal(os.Kill)
+		err := w.cmd.Process.Kill()
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func (w *Process) Kill() error {
 	}
 
 	w.state.Set(worker.StateKilling)
-	err := w.cmd.Process.Signal(os.Kill)
+	err := w.cmd.Process.Kill()
 	if err != nil {
 		return err
 	}

@@ -84,6 +84,11 @@ func (v *Vec) Push(w worker.BaseProcess) {
 				if wrk != nil {
 					_ = wrk.Kill()
 				}
+
+				if w.State().Value() != worker.StateReady {
+					_ = wrk.Kill()
+					return
+				}
 				// replace with the new one and return from the loop
 				// new worker can be ttl-ed at this moment, it's possible to replace TTL-ed worker with new TTL-ed worker
 				// But this case will be handled in the worker_watcher::Get
@@ -100,6 +105,10 @@ func (v *Vec) Push(w worker.BaseProcess) {
 			}
 		}
 	}
+}
+
+func (v *Vec) Len() int {
+	return len(v.workers)
 }
 
 func (v *Vec) Remove(_ int64) {}
