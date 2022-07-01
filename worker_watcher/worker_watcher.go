@@ -21,7 +21,6 @@ type workerWatcher struct {
 	container *channel.Vec
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
-	stopped    *uint64
 
 	eventBus event_bus.EventBus
 
@@ -44,7 +43,6 @@ func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorker
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
 		workers:         make([]worker.BaseProcess, 0, numWorkers),
-		stopped:         ptrTo(uint64(0)),
 
 		allocator: allocator,
 	}
@@ -378,8 +376,4 @@ func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
 	go func() {
 		ww.wait(wb)
 	}()
-}
-
-func ptrTo[T any](val T) *T {
-	return &val
 }
