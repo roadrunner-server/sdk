@@ -272,7 +272,7 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 	ww.container.Destroy()
 	ww.Unlock()
 
-	tt := time.NewTicker(time.Millisecond * 100)
+	tt := time.NewTicker(time.Millisecond * 10)
 	// destroy container, we don't use ww mutex here, since we should be able to push worker
 	defer tt.Stop()
 	for {
