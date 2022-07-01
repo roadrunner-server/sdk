@@ -116,6 +116,7 @@ func Test_NewPoolReset(t *testing.T) {
 	if len(w) == 0 {
 		t.Fatal("should be workers inside")
 	}
+	pid := w[0].Pid()
 
 	pld, err := p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
 	require.NoError(t, err)
@@ -125,6 +126,7 @@ func Test_NewPoolReset(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		for i := 0; i < 100; i++ {
+			time.Sleep(time.Millisecond * 10)
 			pldG, errG := p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
 			require.NoError(t, errG)
 			require.NotNil(t, pldG.Body)
@@ -133,7 +135,6 @@ func Test_NewPoolReset(t *testing.T) {
 		wg.Done()
 	}()
 
-	pid := w[0].Pid()
 	require.NoError(t, p.Reset(context.Background()))
 
 	pld, err = p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})

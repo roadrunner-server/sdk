@@ -21,8 +21,7 @@ type workerWatcher struct {
 	container *channel.Vec
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
-
-	eventBus event_bus.EventBus
+	eventBus   event_bus.EventBus
 
 	workers []worker.BaseProcess
 	log     *zap.Logger
@@ -187,8 +186,6 @@ func (ww *workerWatcher) Remove(wb worker.BaseProcess) {
 	for i := 0; i < len(ww.workers); i++ {
 		if ww.workers[i].Pid() == pid {
 			ww.workers = append(ww.workers[:i], ww.workers[i+1:]...)
-			// kill worker, just to be sure it's dead
-			_ = wb.Kill()
 			return
 		}
 	}
@@ -219,7 +216,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 			if ww.container.Len() == 0 {
 				ww.RUnlock()
-				return
+				goto drain
 			}
 
 			// that might be one of the workers is working
@@ -231,6 +228,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			ww.RUnlock()
 			// All workers at this moment are in the container
 			// Pop operation is blocked, push can't be done, since it's not possible to pop
+		drain:
 			ww.Lock()
 
 			// drain channel
@@ -355,9 +353,6 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 		return
 	}
 
-	// this event used mostly for the temporal plugin
-	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", "process exited"))
-
 	err = ww.Allocate()
 	if err != nil {
 		ww.log.Error("failed to allocate the worker", zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
@@ -370,6 +365,9 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 			panic(errors.E(op, errors.WorkerAllocate, errors.Errorf("can't allocate workers: %v, no workers in the pool", err)))
 		}
 	}
+
+	// this event used mostly for the temporal plugin
+	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", "process exited"))
 }
 
 func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
