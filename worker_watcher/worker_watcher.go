@@ -281,9 +281,9 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 				So, there is 0 ww.workers len, and it is never equal to the ww.numWorkers
 			*/
 			ww.RLock()
-			if len(ww.workers) == 0 {
+			if ww.container.Len() == 0 {
 				ww.RUnlock()
-				return
+				goto drain
 			}
 
 			// that might be one of the workers is working
@@ -294,6 +294,8 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			ww.RUnlock()
 			// All container at this moment are in the container
 			// Pop operation is blocked, push can't be done, since it's not possible to pop
+
+		drain:
 			ww.Lock()
 			// drain channel
 			_, _ = ww.container.Pop(ctx)
