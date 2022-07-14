@@ -19,6 +19,10 @@ func (sp *Pool) newPoolAllocator(ctx context.Context, timeout time.Duration, fac
 		defer cancel()
 		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(sp.cfg.Command))
 		if err != nil {
+			// context deadline
+			if errors.Is(errors.TimeOut, err) {
+				return nil, errors.Str("failed to spawn a worker, possible reasons: https://roadrunner.dev/docs/known-issues-allocate-timeout/2.x/en")
+			}
 			return nil, err
 		}
 

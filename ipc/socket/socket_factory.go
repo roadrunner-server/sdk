@@ -155,7 +155,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, errors.E(errors.TimeOut)
 	case res := <-c:
 		if res.err != nil {
 			return nil, res.err
@@ -207,7 +207,7 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w worker.BaseProcess
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, errors.E(errors.TimeOut)
 		case <-ticker.C:
 			// check for the process exists
 			_, err := process.NewProcess(int32(w.Pid()))

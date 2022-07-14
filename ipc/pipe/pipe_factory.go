@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/roadrunner-server/api/v2/worker"
+	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/pipe"
 	"github.com/roadrunner-server/sdk/v2/internal"
 	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
@@ -130,7 +131,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, errors.E(errors.TimeOut)
 	case res := <-spCh:
 		if res.err != nil {
 			return nil, res.err

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/payload"
+	"github.com/roadrunner-server/errors"
 	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -151,7 +152,7 @@ func Test_Tcp_Timeout(t *testing.T) {
 	w, err := NewSocketServer(ls, time.Millisecond*1, log).SpawnWorkerWithTimeout(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.True(t, errors.Is(errors.TimeOut, err))
 }
 
 func Test_Tcp_Invalid(t *testing.T) {
@@ -369,7 +370,7 @@ func Test_Unix_Timeout(t *testing.T) {
 	w, err := NewSocketServer(ls, time.Millisecond*100, log).SpawnWorkerWithTimeout(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.True(t, errors.Is(errors.TimeOut, err))
 }
 
 func Test_Unix_Invalid(t *testing.T) {
