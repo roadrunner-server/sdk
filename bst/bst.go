@@ -1,9 +1,5 @@
 package bst
 
-import (
-	"github.com/roadrunner-server/api/v2/bst"
-)
-
 // BST ...
 type BST struct {
 	// registered topic, not unique
@@ -16,7 +12,7 @@ type BST struct {
 	right *BST
 }
 
-func NewBST() bst.Storage {
+func NewBST() *BST {
 	return &BST{
 		uuids: make(map[string]struct{}, 10),
 	}
