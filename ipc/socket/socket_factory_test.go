@@ -111,7 +111,8 @@ func Test_Tcp_StartError(t *testing.T) {
 
 func Test_Tcp_Failboot(t *testing.T) {
 	time.Sleep(time.Millisecond * 10) // to ensure free socket
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
 
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")
 	if assert.NoError(t, err) {
@@ -134,7 +135,9 @@ func Test_Tcp_Failboot(t *testing.T) {
 
 func Test_Tcp_Timeout(t *testing.T) {
 	time.Sleep(time.Millisecond * 10) // to ensure free socket
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
+	defer cancel()
+
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")
 	if assert.NoError(t, err) {
 		defer func() {
@@ -157,7 +160,8 @@ func Test_Tcp_Timeout(t *testing.T) {
 
 func Test_Tcp_Invalid(t *testing.T) {
 	time.Sleep(time.Millisecond * 10) // to ensure free socket
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")
 	if assert.NoError(t, err) {
 		defer func() {
@@ -332,7 +336,6 @@ func Test_Unix_Start(t *testing.T) {
 
 func Test_Unix_Failboot(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	ctx := context.Background()
 	if err == nil {
 		defer func() {
 			err = ls.Close()
@@ -344,6 +347,9 @@ func Test_Unix_Failboot(t *testing.T) {
 		t.Skip("socket is busy")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
 	w, err := NewSocketServer(ls, time.Second*5, log).SpawnWorkerWithTimeout(ctx, cmd)
@@ -353,7 +359,6 @@ func Test_Unix_Failboot(t *testing.T) {
 
 func Test_Unix_Timeout(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	ctx := context.Background()
 	if err == nil {
 		defer func() {
 			err = ls.Close()
@@ -366,6 +371,8 @@ func Test_Unix_Timeout(t *testing.T) {
 	}
 
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "unix", "200", "0")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
 
 	w, err := NewSocketServer(ls, time.Millisecond*100, log).SpawnWorkerWithTimeout(ctx, cmd)
 	assert.Nil(t, w)
@@ -374,7 +381,6 @@ func Test_Unix_Timeout(t *testing.T) {
 }
 
 func Test_Unix_Invalid(t *testing.T) {
-	ctx := context.Background()
 	ls, err := net.Listen("unix", "sock.unix")
 	if err == nil {
 		defer func() {
@@ -388,6 +394,8 @@ func Test_Unix_Invalid(t *testing.T) {
 	}
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	w, err := NewSocketServer(ls, time.Second*10, log).SpawnWorkerWithTimeout(ctx, cmd)
 	assert.Error(t, err)
