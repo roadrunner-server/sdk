@@ -24,14 +24,11 @@ import (
 type Factory struct {
 	// listens for incoming connections from underlying processes
 	ls net.Listener
-
 	// relay connection timeout
 	tout time.Duration
-
 	// sockets which are waiting for process association
 	relays sync.Map
-
-	log *zap.Logger
+	log    *zap.Logger
 }
 
 // NewSocketServer returns Factory attached to a given socket listener.
@@ -94,8 +91,6 @@ type socketSpawn struct {
 func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (worker.BaseProcess, error) {
 	c := make(chan socketSpawn)
 	go func() {
-		ctxT, cancel := context.WithTimeout(ctx, f.tout)
-		defer cancel()
 		w, err := workerImpl.InitBaseWorker(cmd, workerImpl.WithLog(f.log))
 		if err != nil {
 			select {
@@ -122,7 +117,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 			}
 		}
 
-		rl, err := f.findRelayWithContext(ctxT, w)
+		rl, err := f.findRelayWithContext(ctx, w)
 		if err != nil {
 			_ = w.Kill()
 			select {
