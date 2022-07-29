@@ -2,6 +2,7 @@ package worker_watcher //nolint:stylecheck
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -369,7 +370,7 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 	}
 
 	// this event used mostly for the temporal plugin
-	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", "process exited"))
+	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", fmt.Sprintf("process exited, pid: %d", w.Pid())))
 }
 
 func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
