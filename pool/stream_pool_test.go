@@ -642,7 +642,9 @@ func Test_StreamPool_QueueSize(t *testing.T) {
 	p.Destroy(ctx)
 }
 
-/* PTR:
+/*
+	PTR:
+
 Benchmark_Pool_Echo-32    	   49076	     29926 ns/op	    8016 B/op	      20 allocs/op
 Benchmark_Pool_Echo-32    	   47257	     30779 ns/op	    8047 B/op	      20 allocs/op
 Benchmark_Pool_Echo-32    	   46737	     29440 ns/op	    8065 B/op	      20 allocs/op

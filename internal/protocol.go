@@ -18,7 +18,7 @@ type pidCommand struct {
 	Pid int `json:"pid"`
 }
 
-var fPool = sync.Pool{New: func() interface{} {
+var fPool = sync.Pool{New: func() any {
 	return frame.NewFrame()
 }}
 
@@ -31,7 +31,7 @@ func putFrame(f *frame.Frame) {
 	fPool.Put(f)
 }
 
-func SendControl(rl relay.Relay, payload interface{}) error {
+func SendControl(rl relay.Relay, payload any) error {
 	fr := getFrame()
 	defer putFrame(fr)
 

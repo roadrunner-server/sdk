@@ -47,7 +47,7 @@ type Pool struct {
 }
 
 // NewStaticPool creates new worker pool and task multiplexer. Pool will initiate with one worker.
-func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf interface{}, log *zap.Logger) (pool.Pool, error) {
+func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf any, log *zap.Logger) (pool.Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
@@ -107,7 +107,7 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf i
 }
 
 // GetConfig returns associated pool configuration. Immutable.
-func (sp *Pool) GetConfig() interface{} {
+func (sp *Pool) GetConfig() any {
 	return sp.cfg
 }
 

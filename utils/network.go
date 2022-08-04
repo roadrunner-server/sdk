@@ -18,7 +18,8 @@ const (
 )
 
 // CreateListener
-// - SO_REUSEPORT. This option allows linear scaling server performance
+//
+//   - SO_REUSEPORT. This option allows linear scaling server performance
 //     on multi-CPU servers.
 //     See https://www.nginx.com/blog/socket-sharding-nginx-release-1-9-1/ for details.
 //
@@ -26,6 +27,7 @@ const (
 //     connection before writing to them.
 //
 //   - TCP_FASTOPEN. See https://lwn.net/Articles/508865/ for details.
+//
 // CreateListener crates socket listener based on DSN definition.
 func CreateListener(address string) (net.Listener, error) {
 	dsn := strings.Split(address, "://")

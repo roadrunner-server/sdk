@@ -101,7 +101,7 @@ func (eb *eventsBus) Send(ev event_bus.Event) {
 func (eb *eventsBus) Len() uint {
 	var ln uint
 
-	eb.subscribers.Range(func(key, value interface{}) bool {
+	eb.subscribers.Range(func(key, value any) bool {
 		ln++
 		return true
 	})
@@ -150,7 +150,7 @@ func (eb *eventsBus) handleEvents() {
 			// http.WorkerError for example
 			wc := fmt.Sprintf("%s.%s", ev.Plugin(), ev.Type().String())
 
-			eb.subscribers.Range(func(key, value interface{}) bool {
+			eb.subscribers.Range(func(key, value any) bool {
 				vsub := value.([]*sub)
 
 				for i := 0; i < len(vsub); i++ {

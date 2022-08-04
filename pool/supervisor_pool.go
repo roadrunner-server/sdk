@@ -69,7 +69,7 @@ func (sp *supervised) Reset(ctx context.Context) error {
 	return sp.pool.Reset(ctx)
 }
 
-func (sp *supervised) GetConfig() interface{} {
+func (sp *supervised) GetConfig() any {
 	return sp.pool.GetConfig()
 }
 

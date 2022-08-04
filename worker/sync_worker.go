@@ -29,17 +29,17 @@ type Worker struct {
 func From(process worker.BaseProcess) *Worker {
 	return &Worker{
 		process: process,
-		fPool: sync.Pool{New: func() interface{} {
+		fPool: sync.Pool{New: func() any {
 			return frame.NewFrame()
 		}},
-		bPool: sync.Pool{New: func() interface{} {
+		bPool: sync.Pool{New: func() any {
 			return new(bytes.Buffer)
 		}},
 
-		chPool: sync.Pool{New: func() interface{} {
+		chPool: sync.Pool{New: func() any {
 			return make(chan wexec, 1)
 		}},
-		respChPool: sync.Pool{New: func() interface{} {
+		respChPool: sync.Pool{New: func() any {
 			return make(chan *payload.Payload)
 		}},
 	}
