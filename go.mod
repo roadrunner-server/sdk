@@ -9,8 +9,8 @@ require (
 	// spiral
 	github.com/roadrunner-server/api/v2 v2.20.1
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/goridge/v3 v3.4.5
-	github.com/roadrunner-server/tcplisten v1.1.2
+	github.com/roadrunner-server/goridge/v3 v3.5.0
+	github.com/roadrunner-server/tcplisten v1.2.0
 	// spiral
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.0
