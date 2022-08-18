@@ -7,9 +7,9 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/prometheus/client_golang v1.13.0
 	// spiral
-	github.com/roadrunner-server/api/v2 v2.21.0
+	github.com/roadrunner-server/api/v2 v2.21.1
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/goridge/v3 v3.5.1
+	github.com/roadrunner-server/goridge/v3 v3.5.2
 	github.com/roadrunner-server/tcplisten v1.2.0
 	// spiral
 	github.com/shirou/gopsutil v3.21.11+incompatible
