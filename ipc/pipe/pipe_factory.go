@@ -9,6 +9,7 @@ import (
 	"github.com/roadrunner-server/goridge/v3/pkg/pipe"
 	"github.com/roadrunner-server/sdk/v2/internal"
 	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/zap"
 )
 
@@ -113,7 +114,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 		}
 
 		// everything ok, set ready state
-		w.State().Set(worker.StateReady)
+		w.State().Transition(fsm.StateReady)
 
 		select {
 		case
@@ -174,7 +175,7 @@ func (f *Factory) SpawnWorker(cmd *exec.Cmd) (worker.BaseProcess, error) {
 	}
 
 	// everything ok, set ready state
-	w.State().Set(worker.StateReady)
+	w.State().Transition(fsm.StateReady)
 	return w, nil
 }
 

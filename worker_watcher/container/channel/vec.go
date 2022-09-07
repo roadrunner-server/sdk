@@ -8,6 +8,7 @@ import (
 
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 )
 
 type Vec struct {
@@ -60,9 +61,9 @@ func (v *Vec) Push(w worker.BaseProcess) {
 			*/
 			wrk := <-v.workers
 
-			switch wrk.State().Value() {
+			switch wrk.State().CurrentState() {
 			// good states
-			case worker.StateWorking, worker.StateReady:
+			case fsm.StateWorking, fsm.StateReady:
 				// put the worker back
 				// generally, while send and receive operations are concurrent (from the channel), channel behave
 				// like a FIFO, but when re-sending from the same goroutine it behaves like a FILO
@@ -71,7 +72,7 @@ func (v *Vec) Push(w worker.BaseProcess) {
 					continue
 				default:
 					// kill the worker from the channel
-					wrk.State().Set(worker.StateInvalid)
+					wrk.State().Transition(fsm.StateInvalid)
 					_ = wrk.Kill()
 
 					continue
@@ -85,7 +86,7 @@ func (v *Vec) Push(w worker.BaseProcess) {
 					_ = wrk.Kill()
 				}
 
-				if w.State().Value() != worker.StateReady {
+				if !w.State().Compare(fsm.StateReady) {
 					_ = wrk.Kill()
 					return
 				}
@@ -98,7 +99,7 @@ func (v *Vec) Push(w worker.BaseProcess) {
 					// the place for the new worker was occupied before
 				default:
 					// kill the new worker and reallocate it
-					w.State().Set(worker.StateInvalid)
+					w.State().Transition(fsm.StateInvalid)
 					_ = w.Kill()
 					return
 				}

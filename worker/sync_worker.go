@@ -11,6 +11,7 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/multierr"
 )
 
@@ -53,19 +54,19 @@ func (tw *Worker) Exec(p *payload.Payload) (*payload.Payload, error) {
 		return nil, errors.E(op, errors.Str("payload can not be empty"))
 	}
 
-	if tw.process.State().Value() != worker.StateReady {
+	if !tw.process.State().Compare(fsm.StateReady) {
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	tw.process.State().Set(worker.StateWorking)
+	tw.process.State().Transition(fsm.StateWorking)
 
 	rsp, err := tw.execPayload(p)
 	if err != nil && !errors.Is(errors.Stop, err) {
 		// just to be more verbose
 		if !errors.Is(errors.SoftJob, err) {
-			tw.process.State().Set(worker.StateErrored)
+			tw.process.State().Transition(fsm.StateErrored)
 			tw.process.State().RegisterExec()
 		}
 		return nil, errors.E(op, err)
@@ -73,12 +74,12 @@ func (tw *Worker) Exec(p *payload.Payload) (*payload.Payload, error) {
 
 	// supervisor may set state of the worker during the work
 	// in this case we should not re-write the worker state
-	if tw.process.State().Value() != worker.StateWorking {
+	if !tw.process.State().Compare(fsm.StateWorking) {
 		tw.process.State().RegisterExec()
 		return rsp, nil
 	}
 
-	tw.process.State().Set(worker.StateReady)
+	tw.process.State().Transition(fsm.StateReady)
 	tw.process.State().RegisterExec()
 
 	return rsp, nil
@@ -101,19 +102,19 @@ func (tw *Worker) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 	defer tw.putCh(c)
 
 	// worker was killed before it started to work (supervisor)
-	if tw.process.State().Value() != worker.StateReady {
+	if !tw.process.State().Compare(fsm.StateReady) {
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", tw.process.State().String()))
 	}
 	// set last used time
 	tw.process.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	tw.process.State().Set(worker.StateWorking)
+	tw.process.State().Transition(fsm.StateWorking)
 
 	go func() {
 		rsp, err := tw.execPayload(p)
 		if err != nil {
 			// just to be more verbose
 			if errors.Is(errors.SoftJob, err) == false { //nolint:gosimple
-				tw.process.State().Set(worker.StateErrored)
+				tw.process.State().Transition(fsm.StateErrored)
 				tw.process.State().RegisterExec()
 			}
 			c <- wexec{
@@ -122,7 +123,7 @@ func (tw *Worker) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 			return
 		}
 
-		if tw.process.State().Value() != worker.StateWorking {
+		if !tw.process.State().Compare(fsm.StateWorking) {
 			tw.process.State().RegisterExec()
 			c <- wexec{
 				payload: rsp,
@@ -131,7 +132,7 @@ func (tw *Worker) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 			return
 		}
 
-		tw.process.State().Set(worker.StateReady)
+		tw.process.State().Transition(fsm.StateReady)
 		tw.process.State().RegisterExec()
 
 		c <- wexec{
@@ -175,7 +176,7 @@ func (tw *Worker) Created() time.Time {
 	return tw.process.Created()
 }
 
-func (tw *Worker) State() worker.State {
+func (tw *Worker) State() worker.FSM {
 	return tw.process.State()
 }
 

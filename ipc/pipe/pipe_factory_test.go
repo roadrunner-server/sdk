@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/payload"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,13 +23,13 @@ func Test_GetState(t *testing.T) {
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
 	go func() {
 		assert.NoError(t, w.Wait())
-		assert.Equal(t, worker.StateStopped, w.State().Value())
+		assert.Equal(t, fsm.StateStopped, w.State().CurrentState())
 	}()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
-	assert.Equal(t, worker.StateReady, w.State().Value())
+	assert.Equal(t, fsm.StateReady, w.State().CurrentState())
 	err = w.Stop()
 	if err != nil {
 		t.Errorf("error stopping the Process: error %v", err)
@@ -47,13 +47,13 @@ func Test_Kill(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		assert.Error(t, w.Wait())
-		assert.Equal(t, worker.StateErrored, w.State().Value())
+		assert.Equal(t, fsm.StateErrored, w.State().CurrentState())
 	}()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
-	assert.Equal(t, worker.StateReady, w.State().Value())
+	assert.Equal(t, fsm.StateReady, w.State().CurrentState())
 	err = w.Kill()
 	if err != nil {
 		t.Errorf("error killing the Process: error %v", err)

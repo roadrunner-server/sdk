@@ -13,6 +13,7 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
 	"github.com/roadrunner-server/sdk/v2/internal"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -25,11 +26,11 @@ type Process struct {
 	created time.Time
 	log     *zap.Logger
 
-	// state holds information about current Process state,
+	// fsm holds information about current Process state,
 	// number of Process executions, buf status change time.
 	// publicly this object is receive-only and protected using Mutex
 	// and atomic counter.
-	state *StateImpl
+	fsm worker.FSM
 
 	// underlying command with associated process, command must be
 	// provided to Process from outside in non-started form. CmdSource
@@ -54,7 +55,6 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	w := &Process{
 		created: time.Now(),
 		cmd:     cmd,
-		state:   NewWorkerState(worker.StateInactive),
 		doneCh:  make(chan struct{}, 1),
 	}
 
@@ -71,6 +71,8 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 
 		w.log = z
 	}
+
+	w.fsm = fsm.NewFSM(fsm.StateInactive, w.log)
 
 	// set self as stderr implementation (Writer interface)
 	rc, err := cmd.StderrPipe()
@@ -102,15 +104,15 @@ func (w *Process) Pid() int64 {
 	return int64(w.pid)
 }
 
-// Created returns time worker was created at.
+// Created returns time, worker was created at.
 func (w *Process) Created() time.Time {
 	return w.created
 }
 
 // State return receive-only Process state object, state can be used to safely access
 // Process status, time when status changed and number of Process executions.
-func (w *Process) State() worker.State {
-	return w.state
+func (w *Process) State() worker.FSM {
+	return w.fsm
 }
 
 // AttachRelay attaches relay to the worker
@@ -125,7 +127,7 @@ func (w *Process) Relay() relay.Relay {
 
 // String returns Process description. fmt.Stringer interface
 func (w *Process) String() string {
-	st := w.state.String()
+	st := w.fsm.String()
 	// we can safely compare pid to 0
 	if w.pid != 0 {
 		st = st + ", pid:" + strconv.Itoa(w.pid)
@@ -135,7 +137,7 @@ func (w *Process) String() string {
 		"(`%s` [%s], num_execs: %v)",
 		strings.Join(w.cmd.Args, " "),
 		st,
-		w.state.NumExecs(),
+		w.fsm.NumExecs(),
 	)
 }
 
@@ -149,7 +151,7 @@ func (w *Process) Start() error {
 }
 
 // Wait must be called once for each Process, call will be released once Process is
-// complete and will return process error (if any), if stderr is presented it's value
+// complete and will return process error (if any), if stderr is presented it is value
 // will be wrapped as WorkerError. Method will return error code if php process fails
 // to find or Start the script.
 func (w *Process) Wait() error {
@@ -159,13 +161,13 @@ func (w *Process) Wait() error {
 	w.doneCh <- struct{}{}
 
 	// If worker was destroyed, just exit
-	if w.State().Value() == worker.StateDestroyed {
+	if w.State().Compare(fsm.StateDestroyed) {
 		return nil
 	}
 
 	// If state is different, and err is not nil, append it to the errors
 	if err != nil {
-		w.State().Set(worker.StateErrored)
+		w.State().Transition(fsm.StateErrored)
 		err = multierr.Combine(err, errors.E(op, err))
 	}
 
@@ -175,12 +177,12 @@ func (w *Process) Wait() error {
 	// and then process.cmd.Wait return an error
 	err2 := w.closeRelay()
 	if err2 != nil {
-		w.State().Set(worker.StateErrored)
+		w.State().Transition(fsm.StateErrored)
 		return multierr.Append(err, errors.E(op, err2))
 	}
 
 	if w.cmd.ProcessState.Success() {
-		w.State().Set(worker.StateStopped)
+		w.State().Transition(fsm.StateStopped)
 		return nil
 	}
 
@@ -206,17 +208,21 @@ func (w *Process) Stop() error {
 	case <-w.doneCh:
 		return nil
 	default:
-		w.state.Set(worker.StateStopping)
+		if !w.fsm.Compare(fsm.StateDestroyed) {
+			w.fsm.Transition(fsm.StateStopping)
+		}
 		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
 		if err != nil {
-			w.state.Set(worker.StateKilling)
+			w.fsm.Transition(fsm.StateKilling)
 			_ = w.cmd.Process.Signal(os.Kill)
 
 			return errors.E(op, errors.Network, err)
 		}
 
 		<-w.doneCh
-		w.state.Set(worker.StateStopped)
+		if !w.fsm.Compare(fsm.StateDestroyed) {
+			w.fsm.Transition(fsm.StateStopped)
+		}
 		return nil
 	}
 }
@@ -224,7 +230,7 @@ func (w *Process) Stop() error {
 // Kill kills underlying process, make sure to call Wait() func to gather
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
-	if w.State().Value() == worker.StateDestroyed {
+	if w.fsm.Compare(fsm.StateDestroyed) {
 		err := w.cmd.Process.Kill()
 		if err != nil {
 			return err
@@ -233,12 +239,12 @@ func (w *Process) Kill() error {
 		return nil
 	}
 
-	w.state.Set(worker.StateKilling)
+	w.fsm.Transition(fsm.StateKilling)
 	err := w.cmd.Process.Kill()
 	if err != nil {
 		return err
 	}
-	w.state.Set(worker.StateStopped)
+	w.fsm.Transition(fsm.StateStopped)
 	return nil
 }
 

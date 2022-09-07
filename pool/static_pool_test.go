@@ -13,10 +13,10 @@ import (
 
 	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/roadrunner-server/api/v2/pool"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/ipc/pipe"
 	"github.com/roadrunner-server/sdk/v2/utils"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -371,7 +371,7 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	time.Sleep(time.Second * 2)
 	list := p.Workers()
 	for _, w := range list {
-		assert.Equal(t, worker.StateReady, w.State().Value())
+		assert.Equal(t, fsm.StateReady, w.State().CurrentState())
 	}
 	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
 	p.Destroy(ctxNew)
@@ -599,7 +599,7 @@ func Test_Static_Pool_Handle_Dead(t *testing.T) {
 
 	time.Sleep(time.Second)
 	for i := range p.Workers() {
-		p.Workers()[i].State().Set(worker.StateErrored)
+		p.Workers()[i].State().Transition(fsm.StateErrored)
 	}
 
 	_, err = p.Exec(&payload.Payload{Body: []byte("hello")})

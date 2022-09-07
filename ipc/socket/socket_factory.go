@@ -14,6 +14,7 @@ import (
 	"github.com/roadrunner-server/goridge/v3/pkg/socket"
 	"github.com/roadrunner-server/sdk/v2/internal"
 	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/shirou/gopsutil/process"
 	"go.uber.org/zap"
 
@@ -134,7 +135,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (wo
 		}
 
 		w.AttachRelay(rl)
-		w.State().Set(worker.StateReady)
+		w.State().Transition(fsm.StateReady)
 
 		select {
 		case c <- socketSpawn{
@@ -186,7 +187,7 @@ func (f *Factory) SpawnWorker(cmd *exec.Cmd) (worker.BaseProcess, error) {
 		return nil, err
 	}
 
-	w.State().Set(worker.StateReady)
+	w.State().Transition(fsm.StateReady)
 
 	return w, nil
 }
