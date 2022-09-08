@@ -373,9 +373,7 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	for _, w := range list {
 		assert.Equal(t, fsm.StateReady, w.State().CurrentState())
 	}
-	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
-	p.Destroy(ctxNew)
-	cancel()
+	p.Destroy(context.Background())
 }
 
 func Test_StaticPool_AllocateTimeout(t *testing.T) {
@@ -435,9 +433,7 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 		lastPID = string(res.Body)
 	}
 
-	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
-	p.Destroy(ctxNew)
-	cancel()
+	p.Destroy(context.Background())
 }
 
 func Test_StaticPool_Debug_Worker(t *testing.T) {
@@ -479,9 +475,7 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 		lastPID = string(res.Body)
 	}
 
-	ctxNew, cancel := context.WithTimeout(ctx, time.Second*2)
-	p.Destroy(ctxNew)
-	cancel()
+	p.Destroy(context.Background())
 }
 
 // identical to replace but controlled on worker side

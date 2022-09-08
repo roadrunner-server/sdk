@@ -272,9 +272,7 @@ func TestSupervisedPool_Idle(t *testing.T) {
 	require.Len(t, p.Workers(), 1)
 	// should be new worker with new pid
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
-	ctxNew, cancel := context.WithTimeout(ctx, time.Second*1)
-	p.Destroy(ctxNew)
-	cancel()
+	p.Destroy(context.Background())
 }
 
 func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
@@ -284,7 +282,6 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 		DestroyTimeout:  time.Second,
 		Supervisor: &SupervisorConfig{
 			WatchTick:       1 * time.Second,
-			TTL:             1 * time.Second,
 			IdleTTL:         1 * time.Second,
 			MaxWorkerMemory: 100,
 		},
@@ -300,7 +297,6 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
-	defer p.Destroy(context.Background())
 
 	pid := p.Workers()[0].Pid()
 
@@ -314,7 +310,7 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 	assert.Empty(t, resp.Body)
 	assert.Empty(t, resp.Context)
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 5)
 
 	if len(p.Workers()) < 1 {
 		t.Fatal("should be at least 1 worker")
@@ -323,7 +319,8 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 
 	// should be destroyed, state should be Ready, not Invalid
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
-	assert.Equal(t, int64(3), p.Workers()[0].State().CurrentState())
+	assert.Equal(t, fsm.StateReady, p.Workers()[0].State().CurrentState())
+	p.Destroy(context.Background())
 }
 
 func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
