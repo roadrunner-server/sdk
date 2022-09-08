@@ -169,7 +169,7 @@ func (sp *supervised) control() {
 			continue
 		}
 
-		if sp.cfg.MaxWorkerMemory != 0 && s.MemoryUsage() >= sp.cfg.MaxWorkerMemory*MB {
+		if sp.cfg.MaxWorkerMemory != 0 && s.MemoryUsage >= sp.cfg.MaxWorkerMemory*MB {
 			/*
 				worker at this point might be in the middle of request execution:
 
