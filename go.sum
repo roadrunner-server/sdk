@@ -196,8 +196,8 @@ github.com/roadrunner-server/api/v2 v2.21.2 h1:wpRVWHUgatVYQAp5tHU2HhwYzFnocriAB
 github.com/roadrunner-server/api/v2 v2.21.2/go.mod h1:nivK+IP32XQw7cRqP6xRfkmsC1Rp5pZxsts1ZxjR95U=
 github.com/roadrunner-server/errors v1.2.0 h1:qBmNXt8Iex9QnYTjCkbJKsBZu2EtYkQCM06GUDcQBbI=
 github.com/roadrunner-server/errors v1.2.0/go.mod h1:z0ECxZp/dDa5RahtMcy4mBIavVxiZ9vwE5kByl7kFtY=
-github.com/roadrunner-server/goridge/v3 v3.5.2 h1:I0GK/LQmlTOs8fd3F4grq5nKQBArLQrON7xla+84xLE=
-github.com/roadrunner-server/goridge/v3 v3.5.2/go.mod h1:ju0NNhhw9G1M8aCNsC0T0/2+aQ9yEHztrWIMlzv4LpE=
+github.com/roadrunner-server/goridge/v3 v3.5.3 h1:DZFKj2w2YLqQ8XWPP6MTX5JMRkv0lUTttpjTAWoq42M=
+github.com/roadrunner-server/goridge/v3 v3.5.3/go.mod h1:ju0NNhhw9G1M8aCNsC0T0/2+aQ9yEHztrWIMlzv4LpE=
 github.com/roadrunner-server/tcplisten v1.2.0 h1:nsiXEEb0zP7vjAsCWNHKpM0HdwFK/KlafFF/2gsTJlg=
 github.com/roadrunner-server/tcplisten v1.2.0/go.mod h1:NhumKvt7dbIKVNZnqR1fA4ET1D8ngIKsg0TxnuJTL6A=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
@@ -365,8 +365,6 @@ golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220114195835-da31bd327af9/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 h1:v6hYoSR9T5oet+pMXwUWkbiVqx/63mlHjefrHmxwfeY=
-golang.org/x/sys v0.0.0-20220829200755-d48e67d00261/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220906165534-d0df966e6959 h1:qSa+Hg9oBe6UJXrznE+yYvW51V9UbyIj/nj/KpDigo8=
 golang.org/x/sys v0.0.0-20220906165534-d0df966e6959/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
