@@ -235,11 +235,20 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 			// drain channel
 			ww.container.Drain()
+
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Transition(fsm.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Stop()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
@@ -251,11 +260,19 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			// kill workers
 			ww.Lock()
 			// drain workers slice
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Transition(fsm.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Stop()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
@@ -301,11 +318,19 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			ww.Lock()
 			// drain channel
 			_, _ = ww.container.Pop(ctx)
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Transition(fsm.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Stop()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 			ww.Unlock()
 			return
 		case <-ctx.Done():
@@ -313,11 +338,19 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			_, _ = ww.container.Pop(ctx)
 			// kill workers
 			ww.Lock()
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Transition(fsm.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Stop()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 			ww.Unlock()
 			return
 		}

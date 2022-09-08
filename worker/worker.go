@@ -203,27 +203,27 @@ func (w *Process) closeRelay() error {
 func (w *Process) Stop() error {
 	const op = errors.Op("process_stop")
 
+	t := time.After(time.Second * 5)
+
+	go func() {
+		w.fsm.Transition(fsm.StateStopping)
+		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
+		if err == nil {
+			w.fsm.Transition(fsm.StateStopped)
+		}
+	}()
+
 	select {
 	// finished
 	case <-w.doneCh:
 		return nil
-	default:
-		if !w.fsm.Compare(fsm.StateDestroyed) {
-			w.fsm.Transition(fsm.StateStopping)
-		}
-		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
-		if err != nil {
-			w.fsm.Transition(fsm.StateKilling)
-			_ = w.cmd.Process.Signal(os.Kill)
-
-			return errors.E(op, errors.Network, err)
-		}
-
-		<-w.doneCh
-		if !w.fsm.Compare(fsm.StateDestroyed) {
-			w.fsm.Transition(fsm.StateStopped)
-		}
-		return nil
+	case <-t:
+		// kill process
+		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
+		w.fsm.Transition(fsm.StateKilling)
+		_ = w.cmd.Process.Signal(os.Kill)
+		w.fsm.Transition(fsm.StateStopped)
+		return errors.E(op, errors.Network)
 	}
 }
 
