@@ -5,11 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/roadrunner-server/api/v2/plugins/informer"
-)
-
-const (
-	readySt   string = "ready"
-	workingSt string = "working"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 )
 
 type StatsExporter struct {
@@ -39,7 +35,7 @@ func (s *StatsExporter) Describe(d chan<- *prometheus.Desc) {
 
 func (s *StatsExporter) Collect(ch chan<- prometheus.Metric) {
 	// get the copy of the processes
-	workers := s.Workers.Workers()
+	workerStates := s.Workers.Workers()
 
 	// cumulative RSS memory in bytes
 	var cum float64
@@ -49,17 +45,17 @@ func (s *StatsExporter) Collect(ch chan<- prometheus.Metric) {
 	var invalid float64
 
 	// collect the memory
-	for i := 0; i < len(workers); i++ {
-		cum += float64(workers[i].MemoryUsage)
+	for i := 0; i < len(workerStates); i++ {
+		cum += float64(workerStates[i].MemoryUsage)
 
-		ch <- prometheus.MustNewConstMetric(s.StateDesc, prometheus.GaugeValue, 0, workers[i].Status, strconv.Itoa(workers[i].Pid))
-		ch <- prometheus.MustNewConstMetric(s.WorkerMemoryDesc, prometheus.GaugeValue, float64(workers[i].MemoryUsage), strconv.Itoa(workers[i].Pid))
+		ch <- prometheus.MustNewConstMetric(s.StateDesc, prometheus.GaugeValue, 0, workerStates[i].StatusStr, strconv.Itoa(int(workerStates[i].Pid)))
+		ch <- prometheus.MustNewConstMetric(s.WorkerMemoryDesc, prometheus.GaugeValue, float64(workerStates[i].MemoryUsage), strconv.Itoa(int(workerStates[i].Pid)))
 
 		// sync with sdk/worker/state.go
-		switch workers[i].Status {
-		case readySt:
+		switch workerStates[i].Status {
+		case fsm.StateReady:
 			ready++
-		case workingSt:
+		case fsm.StateWorking:
 			working++
 		default:
 			invalid++
@@ -71,6 +67,6 @@ func (s *StatsExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(s.WorkersInvalid, prometheus.GaugeValue, invalid)
 
 	// send the values to the prometheus
-	ch <- prometheus.MustNewConstMetric(s.TotalWorkersDesc, prometheus.GaugeValue, float64(len(workers)))
+	ch <- prometheus.MustNewConstMetric(s.TotalWorkersDesc, prometheus.GaugeValue, float64(len(workerStates)))
 	ch <- prometheus.MustNewConstMetric(s.TotalMemoryDesc, prometheus.GaugeValue, cum)
 }

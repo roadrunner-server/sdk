@@ -12,6 +12,7 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/utils"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/roadrunner-server/sdk/v2/worker_watcher/container/channel"
 	"go.uber.org/zap"
 )
@@ -77,7 +78,7 @@ func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 	}
 
 	// fast path, worker not nil and in the ReadyState
-	if w.State().Value() == worker.StateReady {
+	if w.State().Compare(fsm.StateReady) {
 		return w, nil
 	}
 
@@ -95,23 +96,23 @@ func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 			return nil, errors.E(op, err)
 		}
 
-		switch w.State().Value() {
+		switch w.State().CurrentState() {
 		// return only workers in the Ready state
 		// check first
-		case worker.StateReady:
+		case fsm.StateReady:
 			return w, nil
-		case worker.StateWorking: // how??
+		case fsm.StateWorking: // how??
 			ww.container.Push(w) // put it back, let worker finish the work
 			continue
 		case
 			// all the possible wrong states
-			worker.StateInactive,
-			worker.StateDestroyed,
-			worker.StateErrored,
-			worker.StateStopped,
-			worker.StateInvalid,
-			worker.StateKilling,
-			worker.StateStopping:
+			fsm.StateInactive,
+			fsm.StateDestroyed,
+			fsm.StateErrored,
+			fsm.StateStopped,
+			fsm.StateInvalid,
+			fsm.StateKilling,
+			fsm.StateStopping:
 			// worker doing no work because it in the container
 			// so we can safely kill it (inconsistent state)
 			_ = w.Kill()
@@ -194,8 +195,8 @@ func (ww *workerWatcher) Remove(wb worker.BaseProcess) {
 
 // Release O(1) operation
 func (ww *workerWatcher) Release(w worker.BaseProcess) {
-	switch w.State().Value() {
-	case worker.StateReady:
+	switch w.State().CurrentState() {
+	case fsm.StateReady:
 		ww.container.Push(w)
 	default:
 		_ = w.Kill()
@@ -234,11 +235,20 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 			// drain channel
 			ww.container.Drain()
+
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Set(worker.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Kill()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
@@ -250,11 +260,19 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 			// kill workers
 			ww.Lock()
 			// drain workers slice
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Set(worker.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Kill()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 
 			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
@@ -300,11 +318,19 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			ww.Lock()
 			// drain channel
 			_, _ = ww.container.Pop(ctx)
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Set(worker.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Kill()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 			ww.Unlock()
 			return
 		case <-ctx.Done():
@@ -312,11 +338,19 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 			_, _ = ww.container.Pop(ctx)
 			// kill workers
 			ww.Lock()
+			wg := &sync.WaitGroup{}
+			wg.Add(len(ww.workers))
 			for i := 0; i < len(ww.workers); i++ {
-				ww.workers[i].State().Set(worker.StateDestroyed)
-				// kill the worker
-				_ = ww.workers[i].Kill()
+				ii := i
+				go func() {
+					defer wg.Done()
+					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					// kill the worker
+					_ = ww.workers[ii].Stop()
+				}()
 			}
+
+			wg.Wait()
 			ww.Unlock()
 			return
 		}
@@ -350,7 +384,7 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 	// remove worker
 	ww.Remove(w)
 
-	if w.State().Value() == worker.StateDestroyed {
+	if w.State().Compare(fsm.StateDestroyed) {
 		// worker was manually destroyed, no need to replace
 		ww.log.Debug("worker destroyed", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
 		return

@@ -10,6 +10,7 @@ import (
 	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/state/process"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/zap"
 )
 
@@ -131,15 +132,15 @@ func (sp *supervised) control() {
 	for i := 0; i < len(workers); i++ {
 		// if worker not in the Ready OR working state
 		// skip such worker
-		switch workers[i].State().Value() {
+		switch workers[i].State().CurrentState() {
 		case
-			worker.StateInvalid,
-			worker.StateErrored,
-			worker.StateDestroyed,
-			worker.StateInactive,
-			worker.StateStopped,
-			worker.StateStopping,
-			worker.StateKilling:
+			fsm.StateInvalid,
+			fsm.StateErrored,
+			fsm.StateDestroyed,
+			fsm.StateInactive,
+			fsm.StateStopped,
+			fsm.StateStopping,
+			fsm.StateKilling:
 
 			// stop the bad worker
 			if workers[i] != nil {
@@ -163,7 +164,7 @@ func (sp *supervised) control() {
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-			workers[i].State().Set(worker.StateInvalid)
+			workers[i].State().Transition(fsm.StateInvalid)
 			sp.log.Debug("ttl", zap.String("reason", "ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			continue
 		}
@@ -177,7 +178,7 @@ func (sp *supervised) control() {
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-			workers[i].State().Set(worker.StateInvalid)
+			workers[i].State().Transition(fsm.StateInvalid)
 			sp.log.Debug("memory_limit", zap.String("reason", "max memory is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventMaxMemory.String()))
 			continue
 		}
@@ -185,7 +186,7 @@ func (sp *supervised) control() {
 		// firs we check maxWorker idle
 		if sp.cfg.IdleTTL != 0 {
 			// then check for the worker state
-			if workers[i].State().Value() != worker.StateReady {
+			if !workers[i].State().Compare(fsm.StateReady) {
 				continue
 			}
 
@@ -227,7 +228,7 @@ func (sp *supervised) control() {
 																															-----> Worker Stopped here
 				*/
 
-				workers[i].State().Set(worker.StateInvalid)
+				workers[i].State().Transition(fsm.StateInvalid)
 				sp.log.Debug("idle_ttl", zap.String("reason", "idle ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			}
 		}

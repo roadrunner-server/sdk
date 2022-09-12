@@ -12,6 +12,7 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/utils"
+	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
 	"go.uber.org/zap"
 )
@@ -236,7 +237,7 @@ func (sp *Pool) Reset(ctx context.Context) error {
 }
 
 func (sp *Pool) stopWorker(w worker.BaseProcess) {
-	w.State().Set(worker.StateInvalid)
+	w.State().Transition(fsm.StateInvalid)
 	err := w.Stop()
 	if err != nil {
 		sp.log.Warn("user requested worker to be stopped", zap.String("reason", "user event"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
@@ -246,7 +247,7 @@ func (sp *Pool) stopWorker(w worker.BaseProcess) {
 // checkMaxJobs check for worker number of executions and kill workers if that number more than sp.cfg.MaxJobs
 func (sp *Pool) checkMaxJobs(w worker.BaseProcess) {
 	if w.State().NumExecs() >= sp.cfg.MaxJobs {
-		w.State().Set(worker.StateMaxJobsReached)
+		w.State().Transition(fsm.StateMaxJobsReached)
 	}
 
 	sp.ww.Release(w)
