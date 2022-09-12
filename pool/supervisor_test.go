@@ -12,6 +12,7 @@ import (
 	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var cfgSupervised = &Config{
@@ -29,12 +30,13 @@ var cfgSupervised = &Config{
 
 func TestSupervisedPool_Exec(t *testing.T) {
 	ctx := context.Background()
+	logger, _ := zap.NewDevelopment()
 	p, err := NewStaticPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/memleak.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(logger),
 		cfgSupervised,
-		log,
+		logger,
 	)
 
 	require.NoError(t, err)
@@ -170,7 +172,7 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
 }
 
-func TestSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
+func TestSupervisedPool_TTL_WorkerRestarted(t *testing.T) {
 	var cfgExecTTL = &Config{
 		NumWorkers: uint64(1),
 		Supervisor: &SupervisorConfig{
@@ -212,6 +214,7 @@ func TestSupervisedPool_ExecTTL_WorkerRestarted(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
+	require.NotNil(t, resp)
 	assert.Equal(t, string(resp.Body), "hello world")
 	assert.Empty(t, resp.Context)
 

@@ -203,10 +203,9 @@ func (w *Process) closeRelay() error {
 func (w *Process) Stop() error {
 	const op = errors.Op("process_stop")
 
-	t := time.After(time.Second * 5)
-
 	go func() {
 		w.fsm.Transition(fsm.StateStopping)
+		w.log.Debug("sending stop request to the worker", zap.Int("pid", w.pid))
 		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
 		if err == nil {
 			w.fsm.Transition(fsm.StateStopped)
@@ -214,10 +213,12 @@ func (w *Process) Stop() error {
 	}()
 
 	select {
-	// finished
+	// finished, sent to the doneCh is made in the Wait() method
+	// If we successfully sent a stop request, Wait() method will send a struct{} to the doneCh and we're done here
+	// otherwise we have 10 seconds before we kill the process
 	case <-w.doneCh:
 		return nil
-	case <-t:
+	case <-time.After(time.Second * 10):
 		// kill process
 		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
 		w.fsm.Transition(fsm.StateKilling)
