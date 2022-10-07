@@ -16,7 +16,7 @@ import (
 )
 
 // Allocator is responsible for worker allocation in the pool
-type Allocator func() (worker.Worker, error)
+type Allocator func() (*Worker, error)
 
 type Worker struct {
 	process    worker.BaseProcess

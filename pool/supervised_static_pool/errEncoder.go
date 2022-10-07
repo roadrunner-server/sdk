@@ -1,14 +1,14 @@
-package pool
+package supervised_static_pool //nolint:stylecheck
 
 import (
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
+	"github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/zap"
 )
 
-func (sp *Pool) encodeErr(err error, w worker.BaseProcess) error {
+func (sp *Pool) encodeErr(err error, w *worker.Worker) error {
 	// just push event if on any stage was timeout error
 	switch {
 	// for this case, worker already killed in the ExecTTL function

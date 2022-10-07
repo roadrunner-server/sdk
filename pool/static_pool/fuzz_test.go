@@ -1,4 +1,4 @@
-package pool
+package static_pool //nolint:stylecheck
 
 import (
 	"context"
@@ -16,7 +16,7 @@ func FuzzStaticPoolEcho(f *testing.F) {
 	ctx := context.Background()
 	p, err := NewStaticPool(
 		ctx,
-		func(cmd string) *exec.Cmd { return exec.Command("php", "../tests/client.php", "echo", "pipes") },
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
 		testCfg,
 		log,

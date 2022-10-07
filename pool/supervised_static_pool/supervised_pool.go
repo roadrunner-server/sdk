@@ -1,59 +1,71 @@
-package pool
+package supervised_static_pool //nolint:stylecheck
 
 import (
 	"context"
-	"os/exec"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/roadrunner-server/api/v2/ipc"
 	"github.com/roadrunner-server/api/v2/payload"
-	"github.com/roadrunner-server/api/v2/pool"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
+	"github.com/roadrunner-server/sdk/v2/pool"
+	"github.com/roadrunner-server/sdk/v2/state/process"
 	"github.com/roadrunner-server/sdk/v2/utils"
+	"github.com/roadrunner-server/sdk/v2/worker"
 	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
 	"go.uber.org/zap"
 )
 
 const (
-	// StopRequest can be sent by worker to indicate that restart is required.
-	StopRequest = `{"stop":true}`
+	MB = 1024 * 1024
 )
 
-type Options func(p *Pool)
-
-type Command func(cmd string) *exec.Cmd
+// NSEC_IN_SEC nanoseconds in second
+const NSEC_IN_SEC int64 = 1000000000 //nolint:stylecheck
 
 // Pool controls worker creation, destruction and task routing. Pool uses fixed amount of stack.
 type Pool struct {
-	cfg *Config
+	mu sync.RWMutex
+	// pool configuration
+	cfg *pool.Config
+
+	// logger
 	log *zap.Logger
 
 	// worker command creator
-	cmd Command
+	cmd pool.Command
 
 	// creates and connects to stack
 	factory ipc.Factory
 
 	// manages worker states and TTLs
-	ww worker.Watcher
+	ww *workerWatcher.WorkerWatcher
 
 	// allocate new worker
-	allocator worker.Allocator
+	allocator func() (*worker.Worker, error)
 
 	// exec queue size
 	queue uint64
+
+	stopCh chan struct{}
 }
 
-// NewStaticPool creates new worker pool and task multiplexer. Pool will initiate with one worker.
-func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf any, log *zap.Logger) (pool.Pool, error) {
+// NewSupervisedPool creates new worker pool and task multiplexer. Pool will initiate with one worker by default
+func NewSupervisedPool(ctx context.Context, cmd pool.Command, factory ipc.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
 
-	cfg := conf.(*Config)
+	if cfg == nil {
+		return nil, errors.Str("nil configuration provided")
+	}
+
+	if cfg.Supervisor == nil {
+		return nil, errors.Str("supervised pool initialization without a supervisor configuration")
+	}
 
 	cfg.InitDefaults()
 
@@ -68,24 +80,24 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf a
 		factory: factory,
 		log:     log,
 		queue:   0,
+		stopCh:  make(chan struct{}),
 	}
 
 	if p.log == nil {
-		z, err := zap.NewProduction()
+		var err error
+		p.log, err = zap.NewDevelopment()
 		if err != nil {
 			return nil, err
 		}
-
-		p.log = z
 	}
 
 	// set up workers allocator
-	p.allocator = p.newPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd)
+	p.allocator = pool.NewPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd, p.cfg.Command, p.log)
 	// set up workers watcher
 	p.ww = workerWatcher.NewSyncWorkerWatcher(p.allocator, p.log, p.cfg.NumWorkers, p.cfg.AllocateTimeout)
 
 	// allocate requested number of workers
-	workers, err := p.parallelAllocator(p.cfg.NumWorkers)
+	workers, err := pool.AllocateParallel(p.cfg.NumWorkers, p.allocator)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +108,8 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf a
 		return nil, err
 	}
 
-	// if supervised config not nil, guess, that pool wanted to be supervised
-	if cfg.Supervisor != nil {
-		sp := supervisorWrapper(p, p.log, p.cfg.Supervisor)
-		// start watcher timer
-		sp.Start()
-		return sp, nil
-	}
+	// start workers watcher
+	p.Start()
 
 	return p, nil
 }
@@ -113,57 +120,13 @@ func (sp *Pool) GetConfig() any {
 }
 
 // Workers returns worker list associated with the pool.
-func (sp *Pool) Workers() (workers []worker.BaseProcess) {
+func (sp *Pool) Workers() (workers []*worker.Worker) {
 	return sp.ww.List()
 }
 
-func (sp *Pool) RemoveWorker(wb worker.BaseProcess) error {
+func (sp *Pool) RemoveWorker(wb *worker.Worker) error {
 	sp.ww.Remove(wb)
 	return nil
-}
-
-// Exec executes provided payload on the worker
-func (sp *Pool) Exec(p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("static_pool_exec")
-	if sp.cfg.Debug {
-		return sp.execDebug(p)
-	}
-
-	atomic.AddUint64(&sp.queue, 1)
-	defer atomic.AddUint64(&sp.queue, ^uint64(0))
-
-	// see notes at the end of the file
-begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
-	w, err := sp.takeWorker(ctxGetFree, op)
-	if err != nil {
-		return nil, errors.E(op, err)
-	}
-
-	rsp, err := w.(worker.SyncWorker).Exec(p)
-	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
-		}
-
-		return nil, sp.encodeErr(err, w)
-	}
-
-	// worker want's to be terminated
-	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
-		sp.stopWorker(w)
-		goto begin
-	}
-
-	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return rsp, nil
-	}
-	// return worker back
-	sp.ww.Release(w)
-	return rsp, nil
 }
 
 // ExecWithTTL sync with pool.Exec method
@@ -173,19 +136,27 @@ func (sp *Pool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.P
 		return sp.execDebugWithTTL(ctx, p)
 	}
 
+	var cancel context.CancelFunc
+
+	if sp.cfg.Supervisor.ExecTTL > 0 {
+		ctx, cancel = context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
+		defer cancel()
+	}
+
 	atomic.AddUint64(&sp.queue, 1)
 	defer atomic.AddUint64(&sp.queue, ^uint64(0))
 
 	// see notes at the end of the file
 begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
+	ctxGetFree, cancelGet := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
+	defer cancelGet()
+
 	w, err := sp.takeWorker(ctxGetFree, op)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
 
-	rsp, err := w.(worker.SyncWorker).ExecWithTTL(ctx, p)
+	rsp, err := w.ExecWithTTL(ctx, p)
 	if err != nil {
 		if errors.Is(errors.Retry, err) {
 			sp.ww.Release(w)
@@ -195,7 +166,7 @@ begin:
 	}
 
 	// worker want's to be terminated
-	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
+	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == pool.StopRequest {
 		sp.stopWorker(w)
 		goto begin
 	}
@@ -216,6 +187,9 @@ func (sp *Pool) QueueSize() uint64 {
 
 // Destroy all underlying stack (but let them complete the task).
 func (sp *Pool) Destroy(ctx context.Context) {
+	// stop the watcher
+	sp.stopCh <- struct{}{}
+
 	sp.ww.Destroy(ctx)
 	atomic.StoreUint64(&sp.queue, 0)
 }
@@ -223,7 +197,7 @@ func (sp *Pool) Destroy(ctx context.Context) {
 func (sp *Pool) Reset(ctx context.Context) error {
 	// destroy all workers
 	sp.ww.Reset(ctx)
-	workers, err := sp.parallelAllocator(sp.cfg.NumWorkers)
+	workers, err := pool.AllocateParallel(sp.cfg.NumWorkers, sp.allocator)
 	if err != nil {
 		return err
 	}
@@ -236,7 +210,7 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	return nil
 }
 
-func (sp *Pool) stopWorker(w worker.BaseProcess) {
+func (sp *Pool) stopWorker(w *worker.Worker) {
 	w.State().Transition(fsm.StateInvalid)
 	err := w.Stop()
 	if err != nil {
@@ -245,7 +219,7 @@ func (sp *Pool) stopWorker(w worker.BaseProcess) {
 }
 
 // checkMaxJobs check for worker number of executions and kill workers if that number more than sp.cfg.MaxJobs
-func (sp *Pool) checkMaxJobs(w worker.BaseProcess) {
+func (sp *Pool) checkMaxJobs(w *worker.Worker) {
 	if w.State().NumExecs() >= sp.cfg.MaxJobs {
 		w.State().Transition(fsm.StateMaxJobsReached)
 	}
@@ -253,7 +227,7 @@ func (sp *Pool) checkMaxJobs(w worker.BaseProcess) {
 	sp.ww.Release(w)
 }
 
-func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (worker.BaseProcess, error) {
+func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Worker, error) {
 	// Get function consumes context with timeout
 	w, err := sp.ww.Take(ctxGetFree)
 	if err != nil {
@@ -268,34 +242,6 @@ func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (worker.Bas
 	return w, nil
 }
 
-// execDebug used when debug mode was not set and exec_ttl is 0
-func (sp *Pool) execDebug(p *payload.Payload) (*payload.Payload, error) {
-	sw, err := sp.allocator()
-	if err != nil {
-		return nil, err
-	}
-
-	// redirect call to the workers' exec method (without ttl)
-	r, err := sw.(worker.Worker).Exec(p)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		// read the exit status to prevent process to be a zombie
-		_ = sw.Wait()
-	}()
-
-	// destroy the worker
-	err = sw.Stop()
-	if err != nil {
-		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
-		return nil, err
-	}
-
-	return r, nil
-}
-
 // execDebugWithTTL used when user set debug mode and exec_ttl
 func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	sw, err := sp.allocator()
@@ -304,7 +250,7 @@ func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payl
 	}
 
 	// redirect call to the worker with TTL
-	r, err := sw.(worker.Worker).ExecWithTTL(ctx, p)
+	r, err := sw.ExecWithTTL(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +267,142 @@ func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payl
 	}
 
 	return r, err
+}
+
+func (sp *Pool) Start() {
+	go func() {
+		watchTout := time.NewTicker(sp.cfg.Supervisor.WatchTick)
+		defer watchTout.Stop()
+
+		for {
+			select {
+			case <-sp.stopCh:
+				return
+			// stop here
+			case <-watchTout.C:
+				sp.mu.Lock()
+				sp.control()
+				sp.mu.Unlock()
+			}
+		}
+	}()
+}
+
+func (sp *Pool) Stop() {
+	sp.stopCh <- struct{}{}
+}
+
+func (sp *Pool) control() {
+	now := time.Now()
+
+	// MIGHT BE OUTDATED
+	// It's a copy of the Workers pointers
+	workers := sp.Workers()
+
+	for i := 0; i < len(workers); i++ {
+		// if worker not in the Ready OR working state
+		// skip such worker
+		switch workers[i].State().CurrentState() {
+		case
+			fsm.StateInvalid,
+			fsm.StateErrored,
+			fsm.StateDestroyed,
+			fsm.StateInactive,
+			fsm.StateStopped,
+			fsm.StateStopping,
+			fsm.StateKilling:
+
+			// stop the bad worker
+			if workers[i] != nil {
+				_ = workers[i].Stop()
+			}
+			continue
+		}
+
+		s, err := process.WorkerProcessState(workers[i])
+		if err != nil {
+			// worker not longer valid for supervision
+			continue
+		}
+
+		if sp.cfg.Supervisor.TTL != 0 && now.Sub(workers[i].Created()).Seconds() >= sp.cfg.Supervisor.TTL.Seconds() {
+			/*
+				worker at this point might be in the middle of request execution:
+
+				---> REQ ---> WORKER -----------------> RESP (at this point we should not set the Ready state) ------> | ----> Worker gets between supervisor checks and get killed in the ww.Release
+											 ^
+				                           TTL Reached, state - invalid                                                |
+																														-----> Worker Stopped here
+			*/
+			workers[i].State().Transition(fsm.StateInvalid)
+			sp.log.Debug("ttl", zap.String("reason", "ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
+			continue
+		}
+
+		if sp.cfg.Supervisor.MaxWorkerMemory != 0 && s.MemoryUsage >= sp.cfg.Supervisor.MaxWorkerMemory*MB {
+			/*
+				worker at this point might be in the middle of request execution:
+
+				---> REQ ---> WORKER -----------------> RESP (at this point we should not set the Ready state) ------> | ----> Worker gets between supervisor checks and get killed in the ww.Release
+											 ^
+				                           TTL Reached, state - invalid                                                |
+																														-----> Worker Stopped here
+			*/
+			workers[i].State().Transition(fsm.StateInvalid)
+			sp.log.Debug("memory_limit", zap.String("reason", "max memory is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventMaxMemory.String()))
+			continue
+		}
+
+		// firs we check maxWorker idle
+		if sp.cfg.Supervisor.IdleTTL != 0 {
+			// then check for the worker state
+			if !workers[i].State().Compare(fsm.StateReady) {
+				continue
+			}
+
+			/*
+				Calculate idle time
+				If worker in the StateReady, we read it LastUsed timestamp as UnixNano uint64
+				2. For example maxWorkerIdle is equal to 5sec, then, if (time.Now - LastUsed) > maxWorkerIdle
+				we are guessing that worker overlap idle time and has to be killed
+			*/
+
+			// 1610530005534416045 lu
+			// lu - now = -7811150814 - nanoseconds
+			// 7.8 seconds
+			// get last used unix nano
+			lu := workers[i].State().LastUsed()
+			// worker not used, skip
+			if lu == 0 {
+				continue
+			}
+
+			// convert last used to unixNano and sub time.now to seconds
+			// negative number, because lu always in the past, except for the `back to the future` :)
+			res := ((int64(lu) - now.UnixNano()) / NSEC_IN_SEC) * -1
+
+			// maxWorkerIdle more than diff between now and last used
+			// for example:
+			// After exec worker goes to the rest
+			// And resting for the 5 seconds
+			// IdleTTL is 1 second.
+			// After the control check, res will be 5, idle is 1
+			// 5 - 1 = 4, more than 0, YOU ARE FIRED (removed). Done.
+			if int64(sp.cfg.Supervisor.IdleTTL.Seconds())-res <= 0 {
+				/*
+					worker at this point might be in the middle of request execution:
+
+					---> REQ ---> WORKER -----------------> RESP (at this point we should not set the Ready state) ------> | ----> Worker gets between supervisor checks and get killed in the ww.Release
+												 ^
+					                           TTL Reached, state - invalid                                                |
+																															-----> Worker Stopped here
+				*/
+
+				workers[i].State().Transition(fsm.StateInvalid)
+				sp.log.Debug("idle_ttl", zap.String("reason", "idle ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
+			}
+		}
+	}
 }
 
 /*

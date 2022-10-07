@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/event_bus"
-	"github.com/roadrunner-server/api/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/worker"
+
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/utils"
@@ -17,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type workerWatcher struct {
+type WorkerWatcher struct {
 	sync.RWMutex
 	// actually don't have a lot of impl here, so interface not needed
 	container *channel.Vec
@@ -25,7 +26,7 @@ type workerWatcher struct {
 	numWorkers *uint64
 	eventBus   event_bus.EventBus
 
-	workers []worker.BaseProcess
+	workers []*worker.Worker
 	log     *zap.Logger
 
 	allocator       worker.Allocator
@@ -33,9 +34,9 @@ type workerWatcher struct {
 }
 
 // NewSyncWorkerWatcher is a constructor for the Watcher
-func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *workerWatcher {
+func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
 	eb, _ := events.Bus()
-	return &workerWatcher{
+	return &WorkerWatcher{
 		container: channel.NewVector(numWorkers),
 
 		log:      log,
@@ -43,13 +44,13 @@ func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorker
 		// pass a ptr to the number of workers to avoid blocking in the TTL loop
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
-		workers:         make([]worker.BaseProcess, 0, numWorkers),
+		workers:         make([]*worker.Worker, 0, numWorkers),
 
 		allocator: allocator,
 	}
 }
 
-func (ww *workerWatcher) Watch(workers []worker.BaseProcess) error {
+func (ww *WorkerWatcher) Watch(workers []*worker.Worker) error {
 	ww.Lock()
 	defer ww.Unlock()
 	for i := 0; i < len(workers); i++ {
@@ -63,7 +64,7 @@ func (ww *workerWatcher) Watch(workers []worker.BaseProcess) error {
 }
 
 // Take is not a thread safe operation
-func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
+func (ww *WorkerWatcher) Take(ctx context.Context) (*worker.Worker, error) {
 	const op = errors.Op("worker_watcher_get_free_worker")
 	// we need lock here to prevent Pop operation when ww in the resetting state
 	// thread safe operation
@@ -122,7 +123,7 @@ func (ww *workerWatcher) Take(ctx context.Context) (worker.BaseProcess, error) {
 	}
 }
 
-func (ww *workerWatcher) Allocate() error {
+func (ww *WorkerWatcher) Allocate() error {
 	const op = errors.Op("worker_watcher_allocate_new")
 
 	sw, err := ww.allocator()
@@ -177,7 +178,7 @@ done:
 }
 
 // Remove worker
-func (ww *workerWatcher) Remove(wb worker.BaseProcess) {
+func (ww *WorkerWatcher) Remove(wb *worker.Worker) {
 	ww.Lock()
 	defer ww.Unlock()
 
@@ -194,7 +195,7 @@ func (ww *workerWatcher) Remove(wb worker.BaseProcess) {
 }
 
 // Release O(1) operation
-func (ww *workerWatcher) Release(w worker.BaseProcess) {
+func (ww *WorkerWatcher) Release(w *worker.Worker) {
 	switch w.State().CurrentState() {
 	case fsm.StateReady:
 		ww.container.Push(w)
@@ -203,7 +204,7 @@ func (ww *workerWatcher) Release(w worker.BaseProcess) {
 	}
 }
 
-func (ww *workerWatcher) Reset(ctx context.Context) {
+func (ww *WorkerWatcher) Reset(ctx context.Context) {
 	ww.Lock()
 	// do not release new workers
 	ww.container.Reset()
@@ -250,7 +251,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 			wg.Wait()
 
-			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
+			ww.workers = make([]*worker.Worker, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -274,7 +275,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 
 			wg.Wait()
 
-			ww.workers = make([]worker.BaseProcess, 0, atomic.LoadUint64(ww.numWorkers))
+			ww.workers = make([]*worker.Worker, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -283,7 +284,7 @@ func (ww *workerWatcher) Reset(ctx context.Context) {
 }
 
 // Destroy all underlying container (but let them complete the task)
-func (ww *workerWatcher) Destroy(ctx context.Context) {
+func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 	ww.Lock()
 	// do not release new workers
 	ww.container.Destroy()
@@ -358,7 +359,7 @@ func (ww *workerWatcher) Destroy(ctx context.Context) {
 }
 
 // List - this is O(n) operation, and it will return copy of the actual workers
-func (ww *workerWatcher) List() []worker.BaseProcess {
+func (ww *WorkerWatcher) List() []*worker.Worker {
 	ww.RLock()
 	defer ww.RUnlock()
 
@@ -366,7 +367,7 @@ func (ww *workerWatcher) List() []worker.BaseProcess {
 		return nil
 	}
 
-	base := make([]worker.BaseProcess, 0, len(ww.workers))
+	base := make([]*worker.Worker, 0, len(ww.workers))
 	for i := 0; i < len(ww.workers); i++ {
 		base = append(base, ww.workers[i])
 	}
@@ -374,7 +375,7 @@ func (ww *workerWatcher) List() []worker.BaseProcess {
 	return base
 }
 
-func (ww *workerWatcher) wait(w worker.BaseProcess) {
+func (ww *WorkerWatcher) wait(w *worker.Worker) {
 	const op = errors.Op("worker_watcher_wait")
 	err := w.Wait()
 	if err != nil {
@@ -407,7 +408,7 @@ func (ww *workerWatcher) wait(w worker.BaseProcess) {
 	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", fmt.Sprintf("process exited, pid: %d", w.Pid())))
 }
 
-func (ww *workerWatcher) addToWatch(wb worker.BaseProcess) {
+func (ww *WorkerWatcher) addToWatch(wb *worker.Worker) {
 	go func() {
 		ww.wait(wb)
 	}()

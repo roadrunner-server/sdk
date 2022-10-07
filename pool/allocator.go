@@ -5,19 +5,18 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/ipc"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
-	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/worker"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
-func (sp *Pool) newPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command) worker.Allocator {
-	return func() (worker.BaseProcess, error) {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command, command string, log *zap.Logger) func() (*worker.Worker, error) {
+	return func() (*worker.Worker, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(sp.cfg.Command))
+		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(command))
 		if err != nil {
 			// context deadline
 			if errors.Is(errors.TimeOut, err) {
@@ -27,24 +26,24 @@ func (sp *Pool) newPoolAllocator(ctx context.Context, timeout time.Duration, fac
 		}
 
 		// wrap sync worker
-		sw := workerImpl.From(w)
-		sp.log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
+		sw := worker.From(w)
+		log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
 		return sw, nil
 	}
 }
 
-// allocate required number of stack
-func (sp *Pool) parallelAllocator(numWorkers uint64) ([]worker.BaseProcess, error) {
+// AllocateParallel allocate required number of stack
+func AllocateParallel(numWorkers uint64, allocator func() (*worker.Worker, error)) ([]*worker.Worker, error) {
 	const op = errors.Op("static_pool_allocate_workers")
 
-	workers := make([]worker.BaseProcess, numWorkers)
+	workers := make([]*worker.Worker, numWorkers)
 	eg := new(errgroup.Group)
 
 	// constant number of stack simplify logic
 	for i := uint64(0); i < numWorkers; i++ {
 		ii := i
 		eg.Go(func() error {
-			w, err := sp.allocator()
+			w, err := allocator()
 			if err != nil {
 				return errors.E(op, errors.WorkerAllocate, err)
 			}
