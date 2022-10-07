@@ -11,6 +11,7 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/pool"
+	"github.com/roadrunner-server/sdk/v2/pool/err_actions"
 	"github.com/roadrunner-server/sdk/v2/state/process"
 	"github.com/roadrunner-server/sdk/v2/utils"
 	"github.com/roadrunner-server/sdk/v2/worker"
@@ -131,7 +132,7 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 
 // ExecWithTTL sync with pool.Exec method
 func (sp *Pool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("static_pool_exec_with_context")
+	const op = errors.Op("supervised_static_pool_exec_with_context")
 	if sp.cfg.Debug {
 		return sp.execDebugWithTTL(ctx, p)
 	}
@@ -162,7 +163,7 @@ begin:
 			sp.ww.Release(w)
 			goto begin
 		}
-		return nil, sp.encodeErr(err, w)
+		return nil, err_actions.ErrActions(err, sp.ww, w, sp.log, sp.cfg.MaxJobs)
 	}
 
 	// worker want's to be terminated
@@ -172,10 +173,10 @@ begin:
 	}
 
 	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return rsp, nil
+		if w.State().NumExecs() >= sp.cfg.MaxJobs {
+			w.State().Transition(fsm.StateMaxJobsReached)
+		}
 	}
-
 	// return worker back
 	sp.ww.Release(w)
 	return rsp, nil
@@ -216,15 +217,6 @@ func (sp *Pool) stopWorker(w *worker.Process) {
 	if err != nil {
 		sp.log.Warn("user requested worker to be stopped", zap.String("reason", "user event"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
 	}
-}
-
-// checkMaxJobs check for worker number of executions and kill workers if that number more than sp.cfg.MaxJobs
-func (sp *Pool) checkMaxJobs(w *worker.Process) {
-	if w.State().NumExecs() >= sp.cfg.MaxJobs {
-		w.State().Transition(fsm.StateMaxJobsReached)
-	}
-
-	sp.ww.Release(w)
 }
 
 func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Process, error) {

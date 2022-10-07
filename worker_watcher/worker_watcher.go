@@ -27,8 +27,9 @@ type WorkerWatcher struct {
 	numWorkers *uint64
 	eventBus   event_bus.EventBus
 
-	workers []*worker.Process
-	log     *zap.Logger
+	workers map[int64]*worker.Process
+
+	log *zap.Logger
 
 	allocator       pool.Allocator
 	allocateTimeout time.Duration
@@ -45,7 +46,8 @@ func NewSyncWorkerWatcher(allocator pool.Allocator, log *zap.Logger, numWorkers 
 		// pass a ptr to the number of workers to avoid blocking in the TTL loop
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
-		workers:         make([]*worker.Process, 0, numWorkers),
+		//workers:         make([]*worker.Process, 0, numWorkers),
+		workers: make(map[int64]*worker.Process, numWorkers),
 
 		allocator: allocator,
 	}
@@ -58,7 +60,7 @@ func (ww *WorkerWatcher) Watch(workers []*worker.Process) error {
 		ii := i
 		ww.container.Push(workers[ii])
 		// add worker to watch slice
-		ww.workers = append(ww.workers, workers[ii])
+		ww.workers[workers[ii].Pid()] = workers[ii]
 		ww.addToWatch(workers[ii])
 	}
 	return nil
@@ -106,18 +108,10 @@ func (ww *WorkerWatcher) Take(ctx context.Context) (*worker.Process, error) {
 		case fsm.StateWorking: // how??
 			ww.container.Push(w) // put it back, let worker finish the work
 			continue
-		case
-			// all the possible wrong states
-			fsm.StateInactive,
-			fsm.StateDestroyed,
-			fsm.StateErrored,
-			fsm.StateStopped,
-			fsm.StateInvalid,
-			fsm.StateKilling,
-			fsm.StateStopping:
+		default:
 			// worker doing no work because it in the container
 			// so we can safely kill it (inconsistent state)
-			_ = w.Kill()
+			_ = w.Stop()
 			// try to get new worker
 			continue
 		}
@@ -170,7 +164,7 @@ done:
 
 	ww.Lock()
 	// add new worker to the workers slice (to get information about workers in parallel)
-	ww.workers = append(ww.workers, sw)
+	ww.workers[sw.Pid()] = sw
 	ww.Unlock()
 
 	// push the worker to the container
@@ -183,16 +177,8 @@ func (ww *WorkerWatcher) Remove(wb *worker.Process) {
 	ww.Lock()
 	defer ww.Unlock()
 
-	// set remove state
-	pid := wb.Pid()
-
 	// worker will be removed on the Get operation
-	for i := 0; i < len(ww.workers); i++ {
-		if ww.workers[i].Pid() == pid {
-			ww.workers = append(ww.workers[:i], ww.workers[i+1:]...)
-			return
-		}
-	}
+	delete(ww.workers, wb.Pid())
 }
 
 // Release O(1) operation
@@ -200,7 +186,20 @@ func (ww *WorkerWatcher) Release(w *worker.Process) {
 	switch w.State().CurrentState() {
 	case fsm.StateReady:
 		ww.container.Push(w)
+	case
+		// all the possible wrong states, when we can send a stop signal
+		fsm.StateInactive,
+		fsm.StateDestroyed,
+		fsm.StateErrored,
+		fsm.StateInvalid,
+		fsm.StateMaxJobsReached:
+
+		err := w.Stop()
+		if err != nil {
+			ww.log.Debug("worker release", zap.Error(err))
+		}
 	default:
+		// in all other cases, we have no choice rather than kill the worker
 		_ = w.Kill()
 	}
 }
@@ -240,19 +239,23 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
-			for i := 0; i < len(ww.workers); i++ {
-				ii := i
+
+			for _, v := range ww.workers {
+				v := v
 				go func() {
 					defer wg.Done()
-					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					v.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = ww.workers[ii].Stop()
+					_ = v.Stop()
 				}()
 			}
 
 			wg.Wait()
+			// optimization, only 1 call
+			for k := range ww.workers {
+				delete(ww.workers, k)
+			}
 
-			ww.workers = make([]*worker.Process, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -264,19 +267,23 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 			// drain workers slice
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
-			for i := 0; i < len(ww.workers); i++ {
-				ii := i
+
+			for _, v := range ww.workers {
+				v := v
 				go func() {
 					defer wg.Done()
-					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					v.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = ww.workers[ii].Stop()
+					_ = v.Stop()
 				}()
 			}
 
 			wg.Wait()
+			// optimization, only 1 call
+			for k := range ww.workers {
+				delete(ww.workers, k)
+			}
 
-			ww.workers = make([]*worker.Process, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -322,17 +329,22 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 			_, _ = ww.container.Pop(ctx)
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
-			for i := 0; i < len(ww.workers); i++ {
-				ii := i
+			for _, v := range ww.workers {
+				v := v
 				go func() {
 					defer wg.Done()
-					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					v.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = ww.workers[ii].Stop()
+					_ = v.Stop()
 				}()
 			}
 
 			wg.Wait()
+			// optimization, only 1 call
+			for k := range ww.workers {
+				delete(ww.workers, k)
+			}
+
 			ww.Unlock()
 			return
 		case <-ctx.Done():
@@ -342,17 +354,22 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 			ww.Lock()
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
-			for i := 0; i < len(ww.workers); i++ {
-				ii := i
+			for _, v := range ww.workers {
+				v := v
 				go func() {
 					defer wg.Done()
-					ww.workers[ii].State().Transition(fsm.StateDestroyed)
+					v.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = ww.workers[ii].Stop()
+					_ = v.Stop()
 				}()
 			}
 
 			wg.Wait()
+			// optimization, only 1 call
+			for k := range ww.workers {
+				delete(ww.workers, k)
+			}
+
 			ww.Unlock()
 			return
 		}
@@ -369,8 +386,9 @@ func (ww *WorkerWatcher) List() []*worker.Process {
 	}
 
 	base := make([]*worker.Process, 0, len(ww.workers))
-	for i := 0; i < len(ww.workers); i++ {
-		base = append(base, ww.workers[i])
+
+	for _, v := range ww.workers {
+		base = append(base, v)
 	}
 
 	return base

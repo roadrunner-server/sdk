@@ -373,15 +373,6 @@ func (w *Process) Stop() error {
 // Kill kills underlying process, make sure to call Wait() func to gather
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
-	if w.fsm.Compare(fsm.StateDestroyed) {
-		err := w.cmd.Process.Kill()
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	w.fsm.Transition(fsm.StateKilling)
 	err := w.cmd.Process.Kill()
 	if err != nil {
