@@ -46,6 +46,29 @@ func Test_NewPool(t *testing.T) {
 	assert.NotNil(t, p)
 }
 
+func Test_StaticPool_ImmediateDestroy(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewStaticPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		testCfg,
+		log,
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	go func() {
+		_, _ = p.Exec(&payload.Payload{Body: []byte("hello"), Context: nil})
+	}()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Nanosecond)
+	defer cancel()
+
+	p.Destroy(ctx)
+}
+
 func Test_Poll_Reallocate(t *testing.T) {
 	var testCfg2 = &pool.Config{
 		NumWorkers:      1,

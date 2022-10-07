@@ -31,7 +31,7 @@ var cfgSupervised = &pool.Config{
 	},
 }
 
-func TestSupervisedPool_Exec(t *testing.T) {
+func Test_SupervisedPool_Exec(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
 	p, err := NewSupervisedPool(
@@ -63,6 +63,37 @@ func TestSupervisedPool_Exec(t *testing.T) {
 	ctxNew, cancel := context.WithTimeout(ctx, time.Second)
 	p.Destroy(ctxNew)
 	cancel()
+}
+
+func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewSupervisedPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		&pool.Config{
+			AllocateTimeout: time.Second * 10,
+			DestroyTimeout:  time.Second * 10,
+			Supervisor: &pool.SupervisorConfig{
+				WatchTick:       1 * time.Second,
+				TTL:             100 * time.Second,
+				IdleTTL:         100 * time.Second,
+				ExecTTL:         100 * time.Second,
+				MaxWorkerMemory: 100,
+			},
+		},
+		log,
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	_, _ = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+
+	ctx, cancel := context.WithTimeout(ctx, time.Nanosecond)
+	defer cancel()
+
+	p.Destroy(ctx)
 }
 
 func Test_SupervisedPoolReset(t *testing.T) {
