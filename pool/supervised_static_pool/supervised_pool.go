@@ -45,7 +45,7 @@ type Pool struct {
 	ww *workerWatcher.WorkerWatcher
 
 	// allocate new worker
-	allocator func() (*worker.Worker, error)
+	allocator pool.Allocator
 
 	// exec queue size
 	queue uint64
@@ -120,11 +120,11 @@ func (sp *Pool) GetConfig() any {
 }
 
 // Workers returns worker list associated with the pool.
-func (sp *Pool) Workers() (workers []*worker.Worker) {
+func (sp *Pool) Workers() (workers []*worker.Process) {
 	return sp.ww.List()
 }
 
-func (sp *Pool) RemoveWorker(wb *worker.Worker) error {
+func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 	sp.ww.Remove(wb)
 	return nil
 }
@@ -210,7 +210,7 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	return nil
 }
 
-func (sp *Pool) stopWorker(w *worker.Worker) {
+func (sp *Pool) stopWorker(w *worker.Process) {
 	w.State().Transition(fsm.StateInvalid)
 	err := w.Stop()
 	if err != nil {
@@ -219,7 +219,7 @@ func (sp *Pool) stopWorker(w *worker.Worker) {
 }
 
 // checkMaxJobs check for worker number of executions and kill workers if that number more than sp.cfg.MaxJobs
-func (sp *Pool) checkMaxJobs(w *worker.Worker) {
+func (sp *Pool) checkMaxJobs(w *worker.Process) {
 	if w.State().NumExecs() >= sp.cfg.MaxJobs {
 		w.State().Transition(fsm.StateMaxJobsReached)
 	}
@@ -227,7 +227,7 @@ func (sp *Pool) checkMaxJobs(w *worker.Worker) {
 	sp.ww.Release(w)
 }
 
-func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Worker, error) {
+func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Process, error) {
 	// Get function consumes context with timeout
 	w, err := sp.ww.Take(ctxGetFree)
 	if err != nil {

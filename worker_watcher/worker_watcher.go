@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/api/v2/event_bus"
+	"github.com/roadrunner-server/sdk/v2/pool"
 	"github.com/roadrunner-server/sdk/v2/worker"
 
 	"github.com/roadrunner-server/errors"
@@ -26,15 +27,15 @@ type WorkerWatcher struct {
 	numWorkers *uint64
 	eventBus   event_bus.EventBus
 
-	workers []*worker.Worker
+	workers []*worker.Process
 	log     *zap.Logger
 
-	allocator       worker.Allocator
+	allocator       pool.Allocator
 	allocateTimeout time.Duration
 }
 
 // NewSyncWorkerWatcher is a constructor for the Watcher
-func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
+func NewSyncWorkerWatcher(allocator pool.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
 	eb, _ := events.Bus()
 	return &WorkerWatcher{
 		container: channel.NewVector(numWorkers),
@@ -44,13 +45,13 @@ func NewSyncWorkerWatcher(allocator worker.Allocator, log *zap.Logger, numWorker
 		// pass a ptr to the number of workers to avoid blocking in the TTL loop
 		numWorkers:      utils.Uint64(numWorkers),
 		allocateTimeout: allocateTimeout,
-		workers:         make([]*worker.Worker, 0, numWorkers),
+		workers:         make([]*worker.Process, 0, numWorkers),
 
 		allocator: allocator,
 	}
 }
 
-func (ww *WorkerWatcher) Watch(workers []*worker.Worker) error {
+func (ww *WorkerWatcher) Watch(workers []*worker.Process) error {
 	ww.Lock()
 	defer ww.Unlock()
 	for i := 0; i < len(workers); i++ {
@@ -64,7 +65,7 @@ func (ww *WorkerWatcher) Watch(workers []*worker.Worker) error {
 }
 
 // Take is not a thread safe operation
-func (ww *WorkerWatcher) Take(ctx context.Context) (*worker.Worker, error) {
+func (ww *WorkerWatcher) Take(ctx context.Context) (*worker.Process, error) {
 	const op = errors.Op("worker_watcher_get_free_worker")
 	// we need lock here to prevent Pop operation when ww in the resetting state
 	// thread safe operation
@@ -178,7 +179,7 @@ done:
 }
 
 // Remove worker
-func (ww *WorkerWatcher) Remove(wb *worker.Worker) {
+func (ww *WorkerWatcher) Remove(wb *worker.Process) {
 	ww.Lock()
 	defer ww.Unlock()
 
@@ -195,7 +196,7 @@ func (ww *WorkerWatcher) Remove(wb *worker.Worker) {
 }
 
 // Release O(1) operation
-func (ww *WorkerWatcher) Release(w *worker.Worker) {
+func (ww *WorkerWatcher) Release(w *worker.Process) {
 	switch w.State().CurrentState() {
 	case fsm.StateReady:
 		ww.container.Push(w)
@@ -251,7 +252,7 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 
 			wg.Wait()
 
-			ww.workers = make([]*worker.Worker, 0, atomic.LoadUint64(ww.numWorkers))
+			ww.workers = make([]*worker.Process, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -275,7 +276,7 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 
 			wg.Wait()
 
-			ww.workers = make([]*worker.Worker, 0, atomic.LoadUint64(ww.numWorkers))
+			ww.workers = make([]*worker.Process, 0, atomic.LoadUint64(ww.numWorkers))
 			ww.container.ResetDone()
 			ww.Unlock()
 			return
@@ -359,7 +360,7 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 }
 
 // List - this is O(n) operation, and it will return copy of the actual workers
-func (ww *WorkerWatcher) List() []*worker.Worker {
+func (ww *WorkerWatcher) List() []*worker.Process {
 	ww.RLock()
 	defer ww.RUnlock()
 
@@ -367,7 +368,7 @@ func (ww *WorkerWatcher) List() []*worker.Worker {
 		return nil
 	}
 
-	base := make([]*worker.Worker, 0, len(ww.workers))
+	base := make([]*worker.Process, 0, len(ww.workers))
 	for i := 0; i < len(ww.workers); i++ {
 		base = append(base, ww.workers[i])
 	}
@@ -375,7 +376,7 @@ func (ww *WorkerWatcher) List() []*worker.Worker {
 	return base
 }
 
-func (ww *WorkerWatcher) wait(w *worker.Worker) {
+func (ww *WorkerWatcher) wait(w *worker.Process) {
 	const op = errors.Op("worker_watcher_wait")
 	err := w.Wait()
 	if err != nil {
@@ -408,7 +409,7 @@ func (ww *WorkerWatcher) wait(w *worker.Worker) {
 	ww.eventBus.Send(events.NewEvent(events.EventWorkerStopped, "worker_watcher", fmt.Sprintf("process exited, pid: %d", w.Pid())))
 }
 
-func (ww *WorkerWatcher) addToWatch(wb *worker.Worker) {
+func (ww *WorkerWatcher) addToWatch(wb *worker.Process) {
 	go func() {
 		ww.wait(wb)
 	}()

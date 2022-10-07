@@ -167,8 +167,7 @@ func Test_Tcp_Broken2(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	sw := workerImpl.From(w)
-	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
 	wg.Wait()
@@ -206,9 +205,7 @@ func Test_Tcp_Echo2(t *testing.T) {
 		}
 	}()
 
-	sw := workerImpl.From(w)
-
-	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -310,8 +307,7 @@ func Test_Unix_Broken2(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	sw := workerImpl.From(w)
-	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.Error(t, err)
 	assert.Nil(t, res)
@@ -346,9 +342,7 @@ func Test_Unix_Echo2(t *testing.T) {
 		}
 	}()
 
-	sw := workerImpl.From(w)
-
-	res, err := sw.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -406,10 +400,8 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 		}
 	}()
 
-	sw := workerImpl.From(w)
-
 	for n := 0; n < b.N; n++ {
-		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -475,10 +467,8 @@ func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
 		}
 	}()
 
-	sw := workerImpl.From(w)
-
 	for n := 0; n < b.N; n++ {
-		if _, err := sw.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}

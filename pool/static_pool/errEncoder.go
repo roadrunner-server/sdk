@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (sp *Pool) encodeErr(err error, w *worker.Worker) error {
+func (sp *Pool) encodeErr(err error, w *worker.Process) error {
 	// just push event if on any stage was timeout error
 	switch {
 	// for this case, worker already killed in the ExecTTL function

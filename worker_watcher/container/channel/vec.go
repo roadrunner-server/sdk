@@ -20,7 +20,7 @@ type Vec struct {
 	// reset signal
 	reset uint64
 	// channel with the workers
-	workers chan *worker.Worker
+	workers chan *worker.Process
 }
 
 func NewVector(len uint64) *Vec {
@@ -28,7 +28,7 @@ func NewVector(len uint64) *Vec {
 		len:     len,
 		destroy: 0,
 		reset:   0,
-		workers: make(chan *worker.Worker, len),
+		workers: make(chan *worker.Process, len),
 	}
 
 	return vec
@@ -36,7 +36,7 @@ func NewVector(len uint64) *Vec {
 
 // Push is O(1) operation
 // In case of TTL and full channel O(n) worst case, where n is len of the channel
-func (v *Vec) Push(w *worker.Worker) {
+func (v *Vec) Push(w *worker.Process) {
 	select {
 	case v.workers <- w:
 		// default select branch is only possible when dealing with TTL
@@ -114,7 +114,7 @@ func (v *Vec) Len() int {
 
 func (v *Vec) Remove(_ int64) {}
 
-func (v *Vec) Pop(ctx context.Context) (*worker.Worker, error) {
+func (v *Vec) Pop(ctx context.Context) (*worker.Process, error) {
 	// remove all workers and return
 	if atomic.LoadUint64(&v.destroy) == 1 {
 		// drain channel
