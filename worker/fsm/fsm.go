@@ -1,7 +1,6 @@
 package fsm
 
 import (
-	"sync"
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
@@ -17,7 +16,6 @@ func NewFSM(initialState int64, log *zap.Logger) *fsm {
 
 // FSMImpl is endure FSM interface implementation
 type fsm struct {
-	mutex    sync.Mutex
 	numExecs uint64
 	// to be lightweight, use UnixNano
 	lastUsed     uint64
@@ -35,19 +33,8 @@ func (s *fsm) Compare(state int64) bool {
 
 /*
 Transition moves endure from one state to another
-Rules:
-Transition table:
-Event -> Init. Error on other events (Start, Stop)
-1. Initializing -> Initialized
-Event -> Start. Error on other events (Initialize, Stop)
-2. Starting -> Started
-Event -> Stop. Error on other events (Start, Initialize)
-3. Stopping -> Stopped
 */
 func (s *fsm) Transition(to int64) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	err := s.recognizer(to)
 	if err != nil {
 		return
@@ -77,6 +64,8 @@ func (s *fsm) String() string {
 		return "errored"
 	case StateDestroyed:
 		return "destroyed"
+	case StateMaxJobsReached:
+		return "maxJobsReached"
 	}
 
 	return "undefined"

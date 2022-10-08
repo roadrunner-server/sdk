@@ -234,11 +234,11 @@ func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
 	w.State().Transition(fsm.StateWorking)
 
 	rsp, err := w.execPayload(p)
+	w.State().RegisterExec()
 	if err != nil && !errors.Is(errors.Stop, err) {
 		// just to be more verbose
 		if !errors.Is(errors.SoftJob, err) {
 			w.State().Transition(fsm.StateErrored)
-			w.State().RegisterExec()
 		}
 		return nil, errors.E(op, err)
 	}
@@ -246,12 +246,10 @@ func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
 	// supervisor may set state of the worker during the work
 	// in this case we should not re-write the worker state
 	if !w.State().Compare(fsm.StateWorking) {
-		w.State().RegisterExec()
 		return rsp, nil
 	}
 
 	w.State().Transition(fsm.StateReady)
-	w.State().RegisterExec()
 
 	return rsp, nil
 }
