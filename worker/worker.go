@@ -218,7 +218,7 @@ func (w *Process) Wait() error {
 
 // Exec payload without TTL timeout.
 func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("sync_worker_exec")
+	const op = errors.Op("worker_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
 		return nil, errors.E(op, errors.Str("payload can not be empty"))
@@ -260,7 +260,7 @@ type wexec struct {
 
 // ExecWithTTL executes payload without TTL timeout.
 func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("sync_worker_exec_worker_with_timeout")
+	const op = errors.Op("worker_exec_with_timeout")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
 		return nil, errors.E(op, errors.Str("payload can not be empty"))

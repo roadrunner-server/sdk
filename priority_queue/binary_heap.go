@@ -30,7 +30,7 @@ type Item interface {
 	Context() ([]byte, error)
 }
 
-type BinHeap[T Item, Q Queue] struct {
+type BinHeap[T Item] struct {
 	items []T
 	// find a way to use pointer to the raw data
 	len    uint64
@@ -38,8 +38,8 @@ type BinHeap[T Item, Q Queue] struct {
 	cond   sync.Cond
 }
 
-func NewBinHeap[T Item, Q Queue](maxLen uint64) *BinHeap[T, Q] {
-	return &BinHeap[T, Q]{
+func NewBinHeap[T Item](maxLen uint64) *BinHeap[T] {
+	return &BinHeap[T]{
 		items:  make([]T, 0, 1000),
 		len:    0,
 		maxLen: maxLen,
@@ -47,7 +47,7 @@ func NewBinHeap[T Item, Q Queue](maxLen uint64) *BinHeap[T, Q] {
 	}
 }
 
-func (bh *BinHeap[T, Q]) fixUp() {
+func (bh *BinHeap[T]) fixUp() {
 	k := bh.len - 1
 	p := (k - 1) >> 1 // k-1 / 2
 
@@ -64,11 +64,11 @@ func (bh *BinHeap[T, Q]) fixUp() {
 	}
 }
 
-func (bh *BinHeap[T, Q]) swap(i, j uint64) {
+func (bh *BinHeap[T]) swap(i, j uint64) {
 	(bh.items)[i], (bh.items)[j] = (bh.items)[j], (bh.items)[i]
 }
 
-func (bh *BinHeap[T, Q]) fixDown(curr, end int) {
+func (bh *BinHeap[T]) fixDown(curr, end int) {
 	cOneIdx := (curr << 1) + 1
 	for cOneIdx <= end {
 		cTwoIdx := -1
@@ -90,11 +90,11 @@ func (bh *BinHeap[T, Q]) fixDown(curr, end int) {
 	}
 }
 
-func (bh *BinHeap[T, Q]) Len() uint64 {
+func (bh *BinHeap[T]) Len() uint64 {
 	return atomic.LoadUint64(&bh.len)
 }
 
-func (bh *BinHeap[T, Q]) Insert(item T) {
+func (bh *BinHeap[T]) Insert(item T) {
 	bh.cond.L.Lock()
 
 	// check the binary heap len before insertion
@@ -124,7 +124,7 @@ func (bh *BinHeap[T, Q]) Insert(item T) {
 	bh.cond.Signal()
 }
 
-func (bh *BinHeap[T, Q]) ExtractMin() T {
+func (bh *BinHeap[T]) ExtractMin() T {
 	bh.cond.L.Lock()
 
 	// if len == 0, wait for the signal

@@ -44,7 +44,7 @@ func FuzzStaticPoolEcho(f *testing.F) {
 		if len(data) == 0 {
 			data = []byte("1")
 		}
-		res, err := p.ExecWithTTL(context.Background(), &payload.Payload{Body: data})
+		res, err := p.Exec(context.Background(), &payload.Payload{Body: data})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, res)

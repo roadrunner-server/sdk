@@ -130,8 +130,8 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 	return nil
 }
 
-// ExecWithTTL sync with pool.Exec method
-func (sp *Pool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+// Exec sync with pool.Exec method
+func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("supervised_static_pool_exec_with_context")
 	if sp.cfg.Debug {
 		return sp.execDebugWithTTL(ctx, p)
@@ -302,6 +302,7 @@ func (sp *Pool) control() {
 			fsm.StateInactive,
 			fsm.StateStopped,
 			fsm.StateStopping,
+			fsm.StateMaxJobsReached,
 			fsm.StateKilling:
 
 			// stop the bad worker

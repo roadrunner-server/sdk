@@ -110,7 +110,7 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 }
 
 // Exec executes provided payload on the worker
-func (sp *Pool) Exec(p *payload.Payload) (*payload.Payload, error) {
+func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("static_pool_exec")
 	if sp.cfg.Debug {
 		return sp.execDebug(p)
@@ -121,7 +121,7 @@ func (sp *Pool) Exec(p *payload.Payload) (*payload.Payload, error) {
 
 	// see notes at the end of the file
 begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
+	ctxGetFree, cancel := context.WithTimeout(ctx, sp.cfg.AllocateTimeout)
 	defer cancel()
 	w, err := sp.takeWorker(ctxGetFree, op)
 	if err != nil {
