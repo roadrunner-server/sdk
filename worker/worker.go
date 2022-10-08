@@ -100,7 +100,7 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 		w.log = z
 	}
 
-	w.fsm = fsm.NewFSM(fsm.StateInactive, w.log)
+	w.fsm = fsm.NewFSM(fsm.StateInactive)
 
 	// set self as stderr implementation (Writer interface)
 	rc, err := cmd.StderrPipe()

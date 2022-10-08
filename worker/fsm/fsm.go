@@ -4,18 +4,17 @@ import (
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
-	"go.uber.org/zap"
 )
 
-// NewFSM returns new FSM implementation based on initial state and callbacks to move from one state to another
-func NewFSM(initialState int64, log *zap.Logger) *fsm {
-	return &fsm{
+// NewFSM returns new FSM implementation based on initial state
+func NewFSM(initialState int64) *Fsm {
+	return &Fsm{
 		currentState: &initialState,
 	}
 }
 
-// FSMImpl is endure FSM interface implementation
-type fsm struct {
+// Fsm is general https://en.wikipedia.org/wiki/Finite-state_machine to transition between worker states
+type Fsm struct {
 	numExecs uint64
 	// to be lightweight, use UnixNano
 	lastUsed     uint64
@@ -23,18 +22,18 @@ type fsm struct {
 }
 
 // CurrentState (see interface)
-func (s *fsm) CurrentState() int64 {
+func (s *Fsm) CurrentState() int64 {
 	return atomic.LoadInt64(s.currentState)
 }
 
-func (s *fsm) Compare(state int64) bool {
+func (s *Fsm) Compare(state int64) bool {
 	return atomic.LoadInt64(s.currentState) == state
 }
 
 /*
 Transition moves endure from one state to another
 */
-func (s *fsm) Transition(to int64) {
+func (s *Fsm) Transition(to int64) {
 	err := s.recognizer(to)
 	if err != nil {
 		return
@@ -44,7 +43,7 @@ func (s *fsm) Transition(to int64) {
 }
 
 // String returns current StateImpl as string.
-func (s *fsm) String() string {
+func (s *Fsm) String() string {
 	switch atomic.LoadInt64(s.currentState) {
 	case StateInactive:
 		return "inactive"
@@ -72,34 +71,34 @@ func (s *fsm) String() string {
 }
 
 // NumExecs returns number of registered WorkerProcess execs.
-func (s *fsm) NumExecs() uint64 {
+func (s *Fsm) NumExecs() uint64 {
 	return atomic.LoadUint64(&s.numExecs)
 }
 
 // IsActive returns true if WorkerProcess not Inactive or Stopped
-func (s *fsm) IsActive() bool {
+func (s *Fsm) IsActive() bool {
 	return atomic.LoadInt64(s.currentState) == StateWorking ||
 		atomic.LoadInt64(s.currentState) == StateReady
 }
 
 // RegisterExec register new execution atomically
-func (s *fsm) RegisterExec() {
+func (s *Fsm) RegisterExec() {
 	atomic.AddUint64(&s.numExecs, 1)
 }
 
 // SetLastUsed Update last used time
-func (s *fsm) SetLastUsed(lu uint64) {
+func (s *Fsm) SetLastUsed(lu uint64) {
 	atomic.StoreUint64(&s.lastUsed, lu)
 }
 
-func (s *fsm) LastUsed() uint64 {
+func (s *Fsm) LastUsed() uint64 {
 	return atomic.LoadUint64(&s.lastUsed)
 }
 
 // Acceptors (also called detectors or recognizers) produce binary output,
 // indicating whether or not the received input is accepted.
 // Each event of an acceptor is either accepting or non accepting.
-func (s *fsm) recognizer(to int64) error {
+func (s *Fsm) recognizer(to int64) error {
 	const op = errors.Op("fsm_recognizer")
 	switch to {
 	// to
