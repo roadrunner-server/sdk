@@ -46,10 +46,9 @@ type Process struct {
 	// can be nil while process is not started.
 	pid int
 
-	fPool      sync.Pool
-	bPool      sync.Pool
-	chPool     sync.Pool
-	respChPool sync.Pool
+	fPool  sync.Pool
+	bPool  sync.Pool
+	chPool sync.Pool
 
 	doneCh chan struct{}
 
@@ -83,11 +82,6 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 		chPool: sync.Pool{
 			New: func() any {
 				return make(chan wexec, 1)
-			},
-		},
-		respChPool: sync.Pool{
-			New: func() any {
-				return make(chan *payload.Payload)
 			},
 		},
 	}
