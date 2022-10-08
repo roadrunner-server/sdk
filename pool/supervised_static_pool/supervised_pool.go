@@ -116,7 +116,7 @@ func NewSupervisedPool(ctx context.Context, cmd pool.Command, factory ipc.Factor
 }
 
 // GetConfig returns associated pool configuration. Immutable.
-func (sp *Pool) GetConfig() any {
+func (sp *Pool) GetConfig() *pool.Config {
 	return sp.cfg
 }
 
@@ -125,6 +125,7 @@ func (sp *Pool) Workers() (workers []*worker.Process) {
 	return sp.ww.List()
 }
 
+// RemoveWorker function should not be used outside the `Wait` function
 func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 	sp.ww.Remove(wb)
 	return nil

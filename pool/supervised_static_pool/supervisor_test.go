@@ -96,6 +96,61 @@ func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 	p.Destroy(ctx)
 }
 
+func Test_SupervisedPool_NilFactory(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewSupervisedPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		nil,
+		log,
+	)
+	assert.Error(t, err)
+	assert.Nil(t, p)
+}
+
+func Test_SupervisedPool_NilConfig(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewSupervisedPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		nil,
+		cfgSupervised,
+		log,
+	)
+	assert.Error(t, err)
+	assert.Nil(t, p)
+}
+
+func Test_SupervisedPool_RemoveWorker(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewSupervisedPool(
+		ctx,
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log),
+		cfgSupervised,
+		log,
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	_, err = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	assert.NoError(t, err)
+
+	wrks := p.Workers()
+	for i := 0; i < len(wrks); i++ {
+		assert.NoError(t, p.RemoveWorker(wrks[i]))
+	}
+
+	_, err = p.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	assert.NoError(t, err)
+
+	assert.Len(t, p.Workers(), 0)
+
+	p.Destroy(ctx)
+}
+
 func Test_SupervisedPoolReset(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewSupervisedPool(
