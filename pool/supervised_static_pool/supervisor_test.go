@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/ipc/pipe"
+	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/pool"
 	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"github.com/stretchr/testify/assert"

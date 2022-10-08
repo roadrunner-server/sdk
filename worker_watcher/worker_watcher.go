@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/event_bus"
 	"github.com/roadrunner-server/sdk/v2/pool"
 	"github.com/roadrunner-server/sdk/v2/worker"
 
@@ -25,7 +24,7 @@ type WorkerWatcher struct {
 	container *channel.Vec
 	// used to control Destroy stage (that all workers are in the container)
 	numWorkers *uint64
-	eventBus   event_bus.EventBus
+	eventBus   *events.Bus
 
 	workers map[int64]*worker.Process
 
@@ -37,7 +36,7 @@ type WorkerWatcher struct {
 
 // NewSyncWorkerWatcher is a constructor for the Watcher
 func NewSyncWorkerWatcher(allocator pool.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
-	eb, _ := events.Bus()
+	eb, _ := events.NewEventBus()
 	return &WorkerWatcher{
 		container: channel.NewVector(numWorkers),
 

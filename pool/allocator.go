@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/ipc"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
 	"github.com/roadrunner-server/sdk/v2/worker"
@@ -16,7 +15,7 @@ import (
 type Allocator func() (*worker.Process, error)
 
 // NewPoolAllocator initializes a allocator of the workers
-func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Factory, cmd Command, command string, log *zap.Logger) Allocator {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command string, log *zap.Logger) Allocator {
 	return func() (*worker.Process, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -31,7 +30,7 @@ func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory ipc.Fa
 
 		// wrap sync worker
 		log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
-		return w.(*worker.Process), nil
+		return w, nil
 	}
 }
 

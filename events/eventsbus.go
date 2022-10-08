@@ -5,26 +5,40 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/roadrunner-server/api/v2/event_bus"
 	"github.com/roadrunner-server/errors"
 )
+
+type EventBus interface {
+	SubscribeAll(subID string, ch chan<- Event) error
+	SubscribeP(subID string, pattern string, ch chan<- Event) error
+	Unsubscribe(subID string)
+	UnsubscribeP(subID, pattern string)
+	Len() uint
+	Send(ev Event)
+}
+
+type Event interface {
+	Type() fmt.Stringer
+	Plugin() string
+	Message() string
+}
 
 type sub struct {
 	pattern string
 	w       *wildcard
-	events  chan<- event_bus.Event
+	events  chan<- Event
 }
 
-type eventsBus struct {
+type Bus struct {
 	sync.RWMutex
 	subscribers  sync.Map
-	internalEvCh chan event_bus.Event
+	internalEvCh chan Event
 	stop         chan struct{}
 }
 
-func newEventsBus() *eventsBus {
-	return &eventsBus{
-		internalEvCh: make(chan event_bus.Event, 100),
+func newEventsBus() *Bus {
+	return &Bus{
+		internalEvCh: make(chan Event, 100),
 		stop:         make(chan struct{}),
 	}
 }
@@ -35,7 +49,7 @@ http.* <-
 
 // SubscribeAll for all RR events
 // returns subscriptionID
-func (eb *eventsBus) SubscribeAll(subID string, ch chan<- event_bus.Event) error {
+func (eb *Bus) SubscribeAll(subID string, ch chan<- Event) error {
 	if ch == nil {
 		return errors.Str("nil channel provided")
 	}
@@ -50,7 +64,7 @@ func (eb *eventsBus) SubscribeAll(subID string, ch chan<- event_bus.Event) error
 }
 
 // SubscribeP pattern like "pluginName.EventType"
-func (eb *eventsBus) SubscribeP(subID string, pattern string, ch chan<- event_bus.Event) error {
+func (eb *Bus) SubscribeP(subID string, pattern string, ch chan<- Event) error {
 	if ch == nil {
 		return errors.Str("nil channel provided")
 	}
@@ -65,11 +79,11 @@ func (eb *eventsBus) SubscribeP(subID string, pattern string, ch chan<- event_bu
 	return eb.subscribe(subID, pattern, ch)
 }
 
-func (eb *eventsBus) Unsubscribe(subID string) {
+func (eb *Bus) Unsubscribe(subID string) {
 	eb.subscribers.Delete(subID)
 }
 
-func (eb *eventsBus) UnsubscribeP(subID, pattern string) {
+func (eb *Bus) UnsubscribeP(subID, pattern string) {
 	if sb, ok := eb.subscribers.Load(subID); ok {
 		eb.Lock()
 		defer eb.Unlock()
@@ -89,7 +103,7 @@ func (eb *eventsBus) UnsubscribeP(subID, pattern string) {
 }
 
 // Send sends event to the events bus
-func (eb *eventsBus) Send(ev event_bus.Event) {
+func (eb *Bus) Send(ev Event) {
 	// do not accept nil events
 	if ev == nil {
 		return
@@ -98,7 +112,7 @@ func (eb *eventsBus) Send(ev event_bus.Event) {
 	eb.internalEvCh <- ev
 }
 
-func (eb *eventsBus) Len() uint {
+func (eb *Bus) Len() uint {
 	var ln uint
 
 	eb.subscribers.Range(func(key, value any) bool {
@@ -109,7 +123,7 @@ func (eb *eventsBus) Len() uint {
 	return ln
 }
 
-func (eb *eventsBus) subscribe(subID string, pattern string, ch chan<- event_bus.Event) error {
+func (eb *Bus) subscribe(subID string, pattern string, ch chan<- Event) error {
 	eb.Lock()
 	defer eb.Unlock()
 	w, err := newWildcard(pattern)
@@ -143,7 +157,7 @@ func (eb *eventsBus) subscribe(subID string, pattern string, ch chan<- event_bus
 	return nil
 }
 
-func (eb *eventsBus) handleEvents() {
+func (eb *Bus) handleEvents() {
 	for { //nolint:gosimple
 		select {
 		case ev := <-eb.internalEvCh:

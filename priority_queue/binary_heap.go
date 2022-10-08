@@ -7,28 +7,47 @@ package priorityqueue
 import (
 	"sync"
 	"sync/atomic"
-
-	"github.com/roadrunner-server/api/v2/pq"
 )
 
-type BinHeap struct {
-	items []pq.Item
+type Queue interface {
+	Insert(item Item)
+	ExtractMin() Item
+	Len() uint64
+}
+
+// Item represents binary heap item
+type Item interface {
+	// ID is a unique item identifier
+	ID() string
+
+	// Priority returns the Item's priority to sort
+	Priority() int64
+
+	// Body is the Item payload
+	Body() []byte
+
+	// Context is the Item meta information
+	Context() ([]byte, error)
+}
+
+type BinHeap[T Item, Q Queue] struct {
+	items []T
 	// find a way to use pointer to the raw data
 	len    uint64
 	maxLen uint64
 	cond   sync.Cond
 }
 
-func NewBinHeap(maxLen uint64) *BinHeap {
-	return &BinHeap{
-		items:  make([]pq.Item, 0, 1000),
+func NewBinHeap[T Item, Q Queue](maxLen uint64) *BinHeap[T, Q] {
+	return &BinHeap[T, Q]{
+		items:  make([]T, 0, 1000),
 		len:    0,
 		maxLen: maxLen,
 		cond:   sync.Cond{L: &sync.Mutex{}},
 	}
 }
 
-func (bh *BinHeap) fixUp() {
+func (bh *BinHeap[T, Q]) fixUp() {
 	k := bh.len - 1
 	p := (k - 1) >> 1 // k-1 / 2
 
@@ -45,11 +64,11 @@ func (bh *BinHeap) fixUp() {
 	}
 }
 
-func (bh *BinHeap) swap(i, j uint64) {
+func (bh *BinHeap[T, Q]) swap(i, j uint64) {
 	(bh.items)[i], (bh.items)[j] = (bh.items)[j], (bh.items)[i]
 }
 
-func (bh *BinHeap) fixDown(curr, end int) {
+func (bh *BinHeap[T, Q]) fixDown(curr, end int) {
 	cOneIdx := (curr << 1) + 1
 	for cOneIdx <= end {
 		cTwoIdx := -1
@@ -71,11 +90,11 @@ func (bh *BinHeap) fixDown(curr, end int) {
 	}
 }
 
-func (bh *BinHeap) Len() uint64 {
+func (bh *BinHeap[T, Q]) Len() uint64 {
 	return atomic.LoadUint64(&bh.len)
 }
 
-func (bh *BinHeap) Insert(item pq.Item) {
+func (bh *BinHeap[T, Q]) Insert(item T) {
 	bh.cond.L.Lock()
 
 	// check the binary heap len before insertion
@@ -105,7 +124,7 @@ func (bh *BinHeap) Insert(item pq.Item) {
 	bh.cond.Signal()
 }
 
-func (bh *BinHeap) ExtractMin() pq.Item {
+func (bh *BinHeap[T, Q]) ExtractMin() T {
 	bh.cond.L.Lock()
 
 	// if len == 0, wait for the signal

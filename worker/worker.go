@@ -12,12 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/payload"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
 	"github.com/roadrunner-server/sdk/v2/internal"
+	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/worker/fsm"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -35,7 +34,7 @@ type Process struct {
 	// number of Process executions, buf status change time.
 	// publicly this object is receive-only and protected using Mutex
 	// and atomic counter.
-	fsm worker.FSM
+	fsm *fsm.Fsm
 
 	// underlying command with associated process, command must be
 	// provided to Process from outside in non-started form. CmdSource
@@ -139,7 +138,7 @@ func (w *Process) Created() time.Time {
 
 // State return receive-only Process state object, state can be used to safely access
 // Process status, time when status changed and number of Process executions.
-func (w *Process) State() worker.FSM {
+func (w *Process) State() *fsm.Fsm {
 	return w.fsm
 }
 

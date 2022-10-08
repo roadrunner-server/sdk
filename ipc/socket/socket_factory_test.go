@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/roadrunner-server/errors"
-	workerImpl "github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -210,7 +209,7 @@ func Test_Tcp_Broken(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
 	wg.Wait()
@@ -250,7 +249,7 @@ func Test_Tcp_Echo(t *testing.T) {
 		}
 	}()
 
-	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -289,7 +288,7 @@ func Test_Tcp_Echo_Script(t *testing.T) {
 		}
 	}()
 
-	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -424,7 +423,7 @@ func Test_Unix_Broken(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.Error(t, err)
 	assert.Nil(t, res)
@@ -466,7 +465,7 @@ func Test_Unix_Echo(t *testing.T) {
 		}
 	}()
 
-	res, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -537,7 +536,7 @@ func Benchmark_Tcp_Worker_ExecEcho(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -600,7 +599,7 @@ func Benchmark_Unix_Worker_ExecEcho(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.(*workerImpl.Process).Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}

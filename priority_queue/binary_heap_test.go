@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/pq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,17 +29,17 @@ func (t Test) Priority() int64 {
 }
 
 func TestBinHeap_Init(t *testing.T) {
-	a := []pq.Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
+	a := []Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
 
-	bh := NewBinHeap(12)
+	bh := NewBinHeap[Item, Queue](12)
 
 	for i := 0; i < len(a); i++ {
 		bh.Insert(a[i])
 	}
 
-	expected := []pq.Item{Test(1), Test(2), Test(2), Test(2), Test(2), Test(4), Test(6), Test(23), Test(33), Test(44), Test(99)}
+	expected := []Item{Test(1), Test(2), Test(2), Test(2), Test(2), Test(4), Test(6), Test(23), Test(33), Test(44), Test(99)}
 
-	res := make([]pq.Item, 0, 12)
+	res := make([]Item, 0, 12)
 
 	for i := 0; i < 11; i++ {
 		item := bh.ExtractMin()
@@ -51,12 +50,12 @@ func TestBinHeap_Init(t *testing.T) {
 }
 
 func TestBinHeap_MaxLen(t *testing.T) {
-	a := []pq.Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
+	a := []Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
 
-	bh := NewBinHeap(1)
+	bh := NewBinHeap[Item, Queue](1)
 
 	go func() {
-		res := make([]pq.Item, 0, 12)
+		res := make([]Item, 0, 12)
 
 		for i := 0; i < 11; i++ {
 			item := bh.ExtractMin()
@@ -78,7 +77,7 @@ func TestNewPriorityQueue(t *testing.T) {
 	insertsPerSec := uint64(0)
 	getPerSec := uint64(0)
 	stopCh := make(chan struct{}, 1)
-	pq := NewBinHeap(1000)
+	pq := NewBinHeap[Item, Queue](1000)
 
 	go func() {
 		tt3 := time.NewTicker(time.Millisecond * 10)

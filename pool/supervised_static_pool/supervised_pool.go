@@ -6,10 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/ipc"
-	"github.com/roadrunner-server/api/v2/payload"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/events"
+	"github.com/roadrunner-server/sdk/v2/payload"
 	"github.com/roadrunner-server/sdk/v2/pool"
 	"github.com/roadrunner-server/sdk/v2/pool/err_actions"
 	"github.com/roadrunner-server/sdk/v2/state/process"
@@ -40,7 +39,7 @@ type Pool struct {
 	cmd pool.Command
 
 	// creates and connects to stack
-	factory ipc.Factory
+	factory pool.Factory
 
 	// manages worker states and TTLs
 	ww *workerWatcher.WorkerWatcher
@@ -55,7 +54,7 @@ type Pool struct {
 }
 
 // NewSupervisedPool creates new worker pool and task multiplexer. Pool will initiate with one worker by default
-func NewSupervisedPool(ctx context.Context, cmd pool.Command, factory ipc.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
+func NewSupervisedPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
