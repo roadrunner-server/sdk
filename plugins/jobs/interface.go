@@ -3,8 +3,8 @@ package jobs
 import (
 	"context"
 
-	"github.com/roadrunner-server/sdk/v2/plugins/jobs/pipeline"
-	priorityqueue "github.com/roadrunner-server/sdk/v2/priority_queue"
+	"github.com/roadrunner-server/sdk/v3/plugins/jobs/pipeline"
+	priorityqueue "github.com/roadrunner-server/sdk/v3/priority_queue"
 )
 
 // Consumer represents a single jobs driver interface

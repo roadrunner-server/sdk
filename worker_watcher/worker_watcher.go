@@ -7,14 +7,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/roadrunner-server/sdk/v2/pool"
-	"github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v3/pool"
+	"github.com/roadrunner-server/sdk/v3/worker"
 
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/utils"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
-	"github.com/roadrunner-server/sdk/v2/worker_watcher/container/channel"
+	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/utils"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
+	"github.com/roadrunner-server/sdk/v3/worker_watcher/container/channel"
 	"go.uber.org/zap"
 )
 

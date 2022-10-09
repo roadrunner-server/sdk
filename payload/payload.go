@@ -1,7 +1,7 @@
 package payload
 
 import (
-	"github.com/roadrunner-server/sdk/v2/utils"
+	"github.com/roadrunner-server/sdk/v3/utils"
 )
 
 // Payload carries binary header and body to stack and

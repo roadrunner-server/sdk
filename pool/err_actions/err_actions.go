@@ -2,10 +2,10 @@ package err_actions //nolint:stylecheck
 
 import (
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/worker"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
-	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
+	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
+	workerWatcher "github.com/roadrunner-server/sdk/v3/worker_watcher"
 	"go.uber.org/zap"
 )
 

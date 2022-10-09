@@ -4,7 +4,7 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/roadrunner-server/sdk/v2/worker"
+	"github.com/roadrunner-server/sdk/v3/worker"
 )
 
 // Factory is responsible for wrapping given command into tasks WorkerProcess.

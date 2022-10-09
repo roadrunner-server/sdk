@@ -3,9 +3,9 @@ package static_pool //nolint:stylecheck
 import (
 	"time"
 
-	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/state/process"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
+	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/state/process"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"go.uber.org/zap"
 )
 

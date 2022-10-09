@@ -11,9 +11,9 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/relay"
 	"github.com/roadrunner-server/goridge/v3/pkg/socket"
-	"github.com/roadrunner-server/sdk/v2/internal"
-	"github.com/roadrunner-server/sdk/v2/worker"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
+	"github.com/roadrunner-server/sdk/v3/internal"
+	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"github.com/shirou/gopsutil/process"
 	"go.uber.org/zap"
 
