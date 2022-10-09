@@ -14,7 +14,7 @@ func FuzzStaticPoolEcho(f *testing.F) {
 	f.Add([]byte("hello"))
 
 	ctx := context.Background()
-	p, err := NewStaticPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),

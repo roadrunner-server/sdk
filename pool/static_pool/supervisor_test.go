@@ -1,4 +1,4 @@
-package supervised_static_pool //nolint:stylecheck
+package static_pool //nolint:stylecheck
 
 import (
 	"context"
@@ -16,8 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var log = zap.NewNop()
-
 var cfgSupervised = &pool.Config{
 	NumWorkers:      uint64(1),
 	AllocateTimeout: time.Second * 10,
@@ -34,7 +32,7 @@ var cfgSupervised = &pool.Config{
 func Test_SupervisedPool_Exec(t *testing.T) {
 	ctx := context.Background()
 	logger, _ := zap.NewDevelopment()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(logger),
@@ -68,7 +66,7 @@ func Test_SupervisedPool_Exec(t *testing.T) {
 func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 	ctx := context.Background()
 
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -98,7 +96,7 @@ func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 
 func Test_SupervisedPool_NilFactory(t *testing.T) {
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -111,7 +109,7 @@ func Test_SupervisedPool_NilFactory(t *testing.T) {
 
 func Test_SupervisedPool_NilConfig(t *testing.T) {
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		nil,
@@ -125,7 +123,7 @@ func Test_SupervisedPool_NilConfig(t *testing.T) {
 func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 	ctx := context.Background()
 
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -153,7 +151,7 @@ func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 
 func Test_SupervisedPoolReset(t *testing.T) {
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -183,7 +181,7 @@ func Test_SupervisedPoolReset(t *testing.T) {
 // This test should finish without freezes
 func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/supervised.php") },
 		pipe.NewPipeFactory(log),
@@ -234,7 +232,7 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -270,7 +268,7 @@ func TestSupervisedPool_TTL_WorkerRestarted(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep-ttl.php") },
 		pipe.NewPipeFactory(log),
@@ -329,7 +327,7 @@ func TestSupervisedPool_Idle(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/idle.php", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -379,7 +377,7 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -429,7 +427,7 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/exec_ttl.php", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -476,7 +474,7 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 	// max memory
 	// constructed
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/memleak.php", "pipes") },
 		pipe.NewPipeFactory(log),
@@ -502,7 +500,7 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 
 func Test_SupervisedPool_FastCancel(t *testing.T) {
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php") },
 		pipe.NewPipeFactory(log),
@@ -535,7 +533,7 @@ func Test_SupervisedPool_AllocateFailedOK(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/allocate-failed.php") },
 		pipe.NewPipeFactory(log),
@@ -576,7 +574,7 @@ func Test_SupervisedPool_AllocateFailedOK(t *testing.T) {
 func Test_SupervisedPool_NoFreeWorkers(t *testing.T) {
 	ctx := context.Background()
 
-	p, err := NewSupervisedPool(
+	p, err := NewPool(
 		ctx,
 		// sleep for the 3 seconds
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php", "pipes") },

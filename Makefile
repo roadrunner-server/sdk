@@ -10,7 +10,6 @@ test_coverage:
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/pipe.out -covermode=atomic ./ipc/pipe
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/socket.out -covermode=atomic ./ipc/socket
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/pool_static.out -covermode=atomic ./pool/static_pool
-	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/pool_sup.out -covermode=atomic ./pool/supervised_static_pool
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/worker.out -covermode=atomic ./worker
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/bst.out -covermode=atomic ./bst
 	go test -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./coverage-ci/pq.out -covermode=atomic ./priority_queue
@@ -24,8 +23,6 @@ test: ## Run application tests
 	go test -v -race ./ipc/socket
 	go test -v -race -fuzz=FuzzStaticPoolEcho -fuzztime=30s -tags=debug ./pool/static_pool
 	go test -v -race ./pool/static_pool
-	go test -v -race -fuzz=FuzzStaticPoolEcho -fuzztime=30s -tags=debug ./pool/supervised_static_pool
-	go test -v -race ./pool/supervised_static_pool
 	go test -v -race ./worker
 	go test -v -race ./bst
 	go test -v -race ./priority_queue

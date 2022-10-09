@@ -2,6 +2,7 @@ package static_pool //nolint:stylecheck
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
@@ -38,10 +39,15 @@ type Pool struct {
 
 	// exec queue size
 	queue uint64
+
+	// used in the supervised mode
+	supervisedExec bool
+	stopCh         chan struct{}
+	mu             sync.RWMutex
 }
 
-// NewStaticPool creates new worker pool and task multiplexer. Pool will initiate with one worker.
-func NewStaticPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
+// NewPool creates new worker pool and task multiplexer. Pool will initiate with one worker. If supervisor configuration is provided -> pool will be turned into a supervisedExec mode
+func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
@@ -90,6 +96,16 @@ func NewStaticPool(ctx context.Context, cmd pool.Command, factory pool.Factory, 
 		return nil, err
 	}
 
+	if p.cfg.Supervisor != nil {
+		if p.cfg.Supervisor.ExecTTL != 0 {
+			// we use supervisedExec ExecWithTTL mode only when ExecTTL is set
+			// otherwise we may use a faster Exec
+			p.supervisedExec = true
+		}
+		// start the supervisor
+		p.Start()
+	}
+
 	return p, nil
 }
 
@@ -113,9 +129,19 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("static_pool_exec")
 	if sp.cfg.Debug {
-		return sp.execDebug(p)
+		switch sp.supervisedExec {
+		case true:
+			ctxTTL, cancel := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
+			defer cancel()
+			return sp.execDebugWithTTL(ctxTTL, p)
+		case false:
+			return sp.execDebug(p)
+		}
 	}
 
+	/*
+		register request in the QUEUE
+	*/
 	atomic.AddUint64(&sp.queue, 1)
 	defer atomic.AddUint64(&sp.queue, ^uint64(0))
 
@@ -128,7 +154,23 @@ begin:
 		return nil, errors.E(op, err)
 	}
 
-	rsp, err := w.Exec(p)
+	/*
+		here we need to decide, what worker mode to use
+	*/
+	var rsp *payload.Payload
+
+	/*
+		in the supervisedExec mode we're limiting the allowed time for the execution inside the PHP worker
+	*/
+	switch sp.supervisedExec {
+	case true:
+		ctxT, cancelT := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
+		defer cancelT()
+		rsp, err = w.ExecWithTTL(ctxT, p)
+	case false:
+		rsp, err = w.Exec(p)
+	}
+
 	if err != nil {
 		if errors.Is(errors.Retry, err) {
 			sp.ww.Release(w)
@@ -229,6 +271,33 @@ func (sp *Pool) execDebug(p *payload.Payload) (*payload.Payload, error) {
 	}
 
 	return r, nil
+}
+
+// execDebugWithTTL used when user set debug mode and exec_ttl
+func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+	sw, err := sp.allocator()
+	if err != nil {
+		return nil, err
+	}
+
+	// redirect call to the worker with TTL
+	r, err := sw.ExecWithTTL(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		// read the exit status to prevent process to be a zombie
+		_ = sw.Wait()
+	}()
+
+	err = sw.Stop()
+	if err != nil {
+		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		return nil, err
+	}
+
+	return r, err
 }
 
 /*
