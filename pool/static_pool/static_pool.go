@@ -1,59 +1,60 @@
-package pool
+package static_pool //nolint:stylecheck
 
 import (
 	"context"
-	"os/exec"
+	"sync"
 	"sync/atomic"
 
-	"github.com/roadrunner-server/api/v2/ipc"
-	"github.com/roadrunner-server/api/v2/payload"
-	"github.com/roadrunner-server/api/v2/pool"
-	"github.com/roadrunner-server/api/v2/worker"
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/utils"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
-	workerWatcher "github.com/roadrunner-server/sdk/v2/worker_watcher"
+	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/payload"
+	"github.com/roadrunner-server/sdk/v3/pool"
+	"github.com/roadrunner-server/sdk/v3/pool/err_actions"
+	"github.com/roadrunner-server/sdk/v3/utils"
+	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
+	workerWatcher "github.com/roadrunner-server/sdk/v3/worker_watcher"
 	"go.uber.org/zap"
 )
 
-const (
-	// StopRequest can be sent by worker to indicate that restart is required.
-	StopRequest = `{"stop":true}`
-)
-
-type Options func(p *Pool)
-
-type Command func(cmd string) *exec.Cmd
-
 // Pool controls worker creation, destruction and task routing. Pool uses fixed amount of stack.
 type Pool struct {
-	cfg *Config
+	// pool configuration
+	cfg *pool.Config
+
+	// logger
 	log *zap.Logger
 
 	// worker command creator
-	cmd Command
+	cmd pool.Command
 
 	// creates and connects to stack
-	factory ipc.Factory
+	factory pool.Factory
 
 	// manages worker states and TTLs
-	ww worker.Watcher
+	ww *workerWatcher.WorkerWatcher
 
 	// allocate new worker
-	allocator worker.Allocator
+	allocator pool.Allocator
 
 	// exec queue size
 	queue uint64
+
+	// used in the supervised mode
+	supervisedExec bool
+	stopCh         chan struct{}
+	mu             sync.RWMutex
 }
 
-// NewStaticPool creates new worker pool and task multiplexer. Pool will initiate with one worker.
-func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf any, log *zap.Logger) (pool.Pool, error) {
+// NewPool creates new worker pool and task multiplexer. Pool will initiate with one worker. If supervisor configuration is provided -> pool will be turned into a supervisedExec mode
+func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *pool.Config, log *zap.Logger) (*Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")
 	}
 
-	cfg := conf.(*Config)
+	if cfg == nil {
+		return nil, errors.Str("nil configuration provided")
+	}
 
 	cfg.InitDefaults()
 
@@ -71,21 +72,20 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf a
 	}
 
 	if p.log == nil {
-		z, err := zap.NewProduction()
+		var err error
+		p.log, err = zap.NewDevelopment()
 		if err != nil {
 			return nil, err
 		}
-
-		p.log = z
 	}
 
 	// set up workers allocator
-	p.allocator = p.newPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd)
+	p.allocator = pool.NewPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd, p.cfg.Command, p.log)
 	// set up workers watcher
 	p.ww = workerWatcher.NewSyncWorkerWatcher(p.allocator, p.log, p.cfg.NumWorkers, p.cfg.AllocateTimeout)
 
 	// allocate requested number of workers
-	workers, err := p.parallelAllocator(p.cfg.NumWorkers)
+	workers, err := pool.AllocateParallel(p.cfg.NumWorkers, p.allocator)
 	if err != nil {
 		return nil, err
 	}
@@ -96,115 +96,101 @@ func NewStaticPool(ctx context.Context, cmd Command, factory ipc.Factory, conf a
 		return nil, err
 	}
 
-	// if supervised config not nil, guess, that pool wanted to be supervised
-	if cfg.Supervisor != nil {
-		sp := supervisorWrapper(p, p.log, p.cfg.Supervisor)
-		// start watcher timer
-		sp.Start()
-		return sp, nil
+	if p.cfg.Supervisor != nil {
+		if p.cfg.Supervisor.ExecTTL != 0 {
+			// we use supervisedExec ExecWithTTL mode only when ExecTTL is set
+			// otherwise we may use a faster Exec
+			p.supervisedExec = true
+		}
+		// start the supervisor
+		p.Start()
 	}
 
 	return p, nil
 }
 
 // GetConfig returns associated pool configuration. Immutable.
-func (sp *Pool) GetConfig() any {
+func (sp *Pool) GetConfig() *pool.Config {
 	return sp.cfg
 }
 
 // Workers returns worker list associated with the pool.
-func (sp *Pool) Workers() (workers []worker.BaseProcess) {
+func (sp *Pool) Workers() (workers []*worker.Process) {
 	return sp.ww.List()
 }
 
-func (sp *Pool) RemoveWorker(wb worker.BaseProcess) error {
+// RemoveWorker function should not be used outside the `Wait` function
+func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 	sp.ww.Remove(wb)
 	return nil
 }
 
 // Exec executes provided payload on the worker
-func (sp *Pool) Exec(p *payload.Payload) (*payload.Payload, error) {
+func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("static_pool_exec")
 	if sp.cfg.Debug {
-		return sp.execDebug(p)
+		switch sp.supervisedExec {
+		case true:
+			ctxTTL, cancel := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
+			defer cancel()
+			return sp.execDebugWithTTL(ctxTTL, p)
+		case false:
+			return sp.execDebug(p)
+		}
 	}
 
+	/*
+		register request in the QUEUE
+	*/
 	atomic.AddUint64(&sp.queue, 1)
 	defer atomic.AddUint64(&sp.queue, ^uint64(0))
 
 	// see notes at the end of the file
 begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
+	ctxGetFree, cancel := context.WithTimeout(ctx, sp.cfg.AllocateTimeout)
 	defer cancel()
 	w, err := sp.takeWorker(ctxGetFree, op)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
 
-	rsp, err := w.(worker.SyncWorker).Exec(p)
+	/*
+		here we need to decide, what worker mode to use
+	*/
+	var rsp *payload.Payload
+
+	/*
+		in the supervisedExec mode we're limiting the allowed time for the execution inside the PHP worker
+	*/
+	switch sp.supervisedExec {
+	case true:
+		ctxT, cancelT := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
+		defer cancelT()
+		rsp, err = w.ExecWithTTL(ctxT, p)
+	case false:
+		rsp, err = w.Exec(p)
+	}
+
 	if err != nil {
 		if errors.Is(errors.Retry, err) {
 			sp.ww.Release(w)
 			goto begin
 		}
 
-		return nil, sp.encodeErr(err, w)
+		return nil, err_actions.ErrActions(err, sp.ww, w, sp.log, sp.cfg.MaxJobs)
 	}
 
 	// worker want's to be terminated
-	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
+	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == pool.StopRequest {
 		sp.stopWorker(w)
 		goto begin
 	}
 
 	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return rsp, nil
-	}
-	// return worker back
-	sp.ww.Release(w)
-	return rsp, nil
-}
-
-// ExecWithTTL sync with pool.Exec method
-func (sp *Pool) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("static_pool_exec_with_context")
-	if sp.cfg.Debug {
-		return sp.execDebugWithTTL(ctx, p)
-	}
-
-	atomic.AddUint64(&sp.queue, 1)
-	defer atomic.AddUint64(&sp.queue, ^uint64(0))
-
-	// see notes at the end of the file
-begin:
-	ctxGetFree, cancel := context.WithTimeout(context.Background(), sp.cfg.AllocateTimeout)
-	defer cancel()
-	w, err := sp.takeWorker(ctxGetFree, op)
-	if err != nil {
-		return nil, errors.E(op, err)
-	}
-
-	rsp, err := w.(worker.SyncWorker).ExecWithTTL(ctx, p)
-	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
+		if w.State().NumExecs() >= sp.cfg.MaxJobs {
+			w.State().Transition(fsm.StateMaxJobsReached)
 		}
-		return nil, sp.encodeErr(err, w)
 	}
-
-	// worker want's to be terminated
-	if len(rsp.Body) == 0 && utils.AsString(rsp.Context) == StopRequest {
-		sp.stopWorker(w)
-		goto begin
-	}
-
-	if sp.cfg.MaxJobs != 0 {
-		sp.checkMaxJobs(w)
-		return rsp, nil
-	}
-
 	// return worker back
 	sp.ww.Release(w)
 	return rsp, nil
@@ -223,7 +209,7 @@ func (sp *Pool) Destroy(ctx context.Context) {
 func (sp *Pool) Reset(ctx context.Context) error {
 	// destroy all workers
 	sp.ww.Reset(ctx)
-	workers, err := sp.parallelAllocator(sp.cfg.NumWorkers)
+	workers, err := pool.AllocateParallel(sp.cfg.NumWorkers, sp.allocator)
 	if err != nil {
 		return err
 	}
@@ -236,7 +222,7 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	return nil
 }
 
-func (sp *Pool) stopWorker(w worker.BaseProcess) {
+func (sp *Pool) stopWorker(w *worker.Process) {
 	w.State().Transition(fsm.StateInvalid)
 	err := w.Stop()
 	if err != nil {
@@ -244,16 +230,7 @@ func (sp *Pool) stopWorker(w worker.BaseProcess) {
 	}
 }
 
-// checkMaxJobs check for worker number of executions and kill workers if that number more than sp.cfg.MaxJobs
-func (sp *Pool) checkMaxJobs(w worker.BaseProcess) {
-	if w.State().NumExecs() >= sp.cfg.MaxJobs {
-		w.State().Transition(fsm.StateMaxJobsReached)
-	}
-
-	sp.ww.Release(w)
-}
-
-func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (worker.BaseProcess, error) {
+func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Process, error) {
 	// Get function consumes context with timeout
 	w, err := sp.ww.Take(ctxGetFree)
 	if err != nil {
@@ -276,7 +253,7 @@ func (sp *Pool) execDebug(p *payload.Payload) (*payload.Payload, error) {
 	}
 
 	// redirect call to the workers' exec method (without ttl)
-	r, err := sw.(worker.Worker).Exec(p)
+	r, err := sw.Exec(p)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +281,7 @@ func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payl
 	}
 
 	// redirect call to the worker with TTL
-	r, err := sw.(worker.Worker).ExecWithTTL(ctx, p)
+	r, err := sw.ExecWithTTL(ctx, p)
 	if err != nil {
 		return nil, err
 	}

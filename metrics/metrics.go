@@ -4,9 +4,13 @@ import (
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/roadrunner-server/api/v2/plugins/informer"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
+	"github.com/roadrunner-server/sdk/v3/state/process"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 )
+
+type Informer interface {
+	Workers() []*process.State
+}
 
 type StatsExporter struct {
 	TotalMemoryDesc  *prometheus.Desc
@@ -18,7 +22,7 @@ type StatsExporter struct {
 	WorkersWorking *prometheus.Desc
 	WorkersInvalid *prometheus.Desc
 
-	Workers informer.Informer
+	Workers Informer
 }
 
 func (s *StatsExporter) Describe(d chan<- *prometheus.Desc) {

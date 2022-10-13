@@ -73,6 +73,6 @@ type SupervisorConfig struct {
 // InitDefaults enables default config values.
 func (cfg *SupervisorConfig) InitDefaults() {
 	if cfg.WatchTick == 0 {
-		cfg.WatchTick = time.Second
+		cfg.WatchTick = time.Second * 5
 	}
 }

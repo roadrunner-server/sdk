@@ -1,107 +1,24 @@
-package pool
+package static_pool //nolint:stylecheck
 
 import (
-	"context"
-	"sync"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/payload"
-	"github.com/roadrunner-server/api/v2/pool"
-	"github.com/roadrunner-server/api/v2/worker"
-	"github.com/roadrunner-server/sdk/v2/events"
-	"github.com/roadrunner-server/sdk/v2/state/process"
-	"github.com/roadrunner-server/sdk/v2/worker/fsm"
+	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/state/process"
+	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"go.uber.org/zap"
 )
 
 const (
 	MB = 1024 * 1024
+
+	// NSEC_IN_SEC nanoseconds in second
+	NSEC_IN_SEC int64 = 1000000000 //nolint:stylecheck
 )
 
-// NSEC_IN_SEC nanoseconds in second
-const NSEC_IN_SEC int64 = 1000000000 //nolint:stylecheck
-
-type supervised struct {
-	cfg    *SupervisorConfig
-	pool   pool.Pool
-	log    *zap.Logger
-	stopCh chan struct{}
-	mu     *sync.RWMutex
-}
-
-func supervisorWrapper(pool pool.Pool, log *zap.Logger, cfg *SupervisorConfig) *supervised {
-	sp := &supervised{
-		cfg:    cfg,
-		pool:   pool,
-		log:    log,
-		mu:     &sync.RWMutex{},
-		stopCh: make(chan struct{}),
-	}
-
-	return sp
-}
-
-func (sp *supervised) ExecWithTTL(ctx context.Context, pld *payload.Payload) (*payload.Payload, error) {
-	if sp.cfg.ExecTTL == 0 {
-		sp.log.Warn("incorrect supervisor ExecWithTTL method usage. ExecTTL should be set. Fallback to the pool.Exec method")
-		return sp.pool.Exec(pld)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, sp.cfg.ExecTTL)
-	defer cancel()
-
-	res, err := sp.pool.ExecWithTTL(ctx, pld)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
-func (sp *supervised) Exec(rqs *payload.Payload) (*payload.Payload, error) {
-	// to be compatible with the old behavior where we only used an Exec method
-	if sp.cfg.ExecTTL != 0 {
-		return sp.ExecWithTTL(context.Background(), rqs)
-	}
-	return sp.pool.Exec(rqs)
-}
-
-func (sp *supervised) Reset(ctx context.Context) error {
-	return sp.pool.Reset(ctx)
-}
-
-func (sp *supervised) GetConfig() any {
-	return sp.pool.GetConfig()
-}
-
-func (sp *supervised) Workers() (workers []worker.BaseProcess) {
-	return sp.pool.Workers()
-}
-
-func (sp *supervised) QueueSize() uint64 {
-	queuer, ok := sp.pool.(pool.Queuer)
-	if ok {
-		return queuer.QueueSize()
-	}
-
-	sp.log.Warn("not implemented")
-	return 0
-}
-
-func (sp *supervised) RemoveWorker(worker worker.BaseProcess) error {
-	return sp.pool.RemoveWorker(worker)
-}
-
-func (sp *supervised) Destroy(ctx context.Context) {
-	sp.Stop()
-	sp.mu.Lock()
-	sp.pool.Destroy(ctx)
-	sp.mu.Unlock()
-}
-
-func (sp *supervised) Start() {
+func (sp *Pool) Start() {
 	go func() {
-		watchTout := time.NewTicker(sp.cfg.WatchTick)
+		watchTout := time.NewTicker(sp.cfg.Supervisor.WatchTick)
 		defer watchTout.Stop()
 
 		for {
@@ -118,16 +35,16 @@ func (sp *supervised) Start() {
 	}()
 }
 
-func (sp *supervised) Stop() {
+func (sp *Pool) Stop() {
 	sp.stopCh <- struct{}{}
 }
 
-func (sp *supervised) control() {
+func (sp *Pool) control() {
 	now := time.Now()
 
 	// MIGHT BE OUTDATED
 	// It's a copy of the Workers pointers
-	workers := sp.pool.Workers()
+	workers := sp.Workers()
 
 	for i := 0; i < len(workers); i++ {
 		// if worker not in the Ready OR working state
@@ -140,6 +57,7 @@ func (sp *supervised) control() {
 			fsm.StateInactive,
 			fsm.StateStopped,
 			fsm.StateStopping,
+			fsm.StateMaxJobsReached,
 			fsm.StateKilling:
 
 			// stop the bad worker
@@ -155,7 +73,7 @@ func (sp *supervised) control() {
 			continue
 		}
 
-		if sp.cfg.TTL != 0 && now.Sub(workers[i].Created()).Seconds() >= sp.cfg.TTL.Seconds() {
+		if sp.cfg.Supervisor.TTL != 0 && now.Sub(workers[i].Created()).Seconds() >= sp.cfg.Supervisor.TTL.Seconds() {
 			/*
 				worker at this point might be in the middle of request execution:
 
@@ -169,7 +87,7 @@ func (sp *supervised) control() {
 			continue
 		}
 
-		if sp.cfg.MaxWorkerMemory != 0 && s.MemoryUsage >= sp.cfg.MaxWorkerMemory*MB {
+		if sp.cfg.Supervisor.MaxWorkerMemory != 0 && s.MemoryUsage >= sp.cfg.Supervisor.MaxWorkerMemory*MB {
 			/*
 				worker at this point might be in the middle of request execution:
 
@@ -184,7 +102,7 @@ func (sp *supervised) control() {
 		}
 
 		// firs we check maxWorker idle
-		if sp.cfg.IdleTTL != 0 {
+		if sp.cfg.Supervisor.IdleTTL != 0 {
 			// then check for the worker state
 			if !workers[i].State().Compare(fsm.StateReady) {
 				continue
@@ -218,7 +136,7 @@ func (sp *supervised) control() {
 			// IdleTTL is 1 second.
 			// After the control check, res will be 5, idle is 1
 			// 5 - 1 = 4, more than 0, YOU ARE FIRED (removed). Done.
-			if int64(sp.cfg.IdleTTL.Seconds())-res <= 0 {
+			if int64(sp.cfg.Supervisor.IdleTTL.Seconds())-res <= 0 {
 				/*
 					worker at this point might be in the middle of request execution:
 

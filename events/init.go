@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-var evBus *eventsBus
+var evBus *Bus
 var onInit = &sync.Once{}
 
-func Bus() (*eventsBus, string) {
+func NewEventBus() (*Bus, string) {
 	onInit.Do(func() {
 		evBus = newEventsBus()
 		go evBus.handleEvents()

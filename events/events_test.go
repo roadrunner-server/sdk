@@ -4,15 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/roadrunner-server/api/v2/event_bus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEvenHandler(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "http.EventWorkerError", ch)
 	require.NoError(t, err)
 
@@ -27,13 +26,13 @@ func TestEvenHandler(t *testing.T) {
 }
 
 func TestEvenHandler2(t *testing.T) {
-	eh, id := Bus()
-	eh2, id2 := Bus()
+	eh, id := NewEventBus()
+	eh2, id2 := NewEventBus()
 	defer eh.Unsubscribe(id)
 	defer eh2.Unsubscribe(id2)
 
-	ch := make(chan event_bus.Event, 100)
-	ch2 := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
+	ch2 := make(chan Event, 100)
 	err := eh2.SubscribeP(id2, "http.EventWorkerError", ch)
 	require.NoError(t, err)
 
@@ -67,10 +66,10 @@ func TestEvenHandler2(t *testing.T) {
 }
 
 func TestEvenHandler3(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "EventWorkerError", ch)
 	require.Error(t, err)
 
@@ -78,7 +77,7 @@ func TestEvenHandler3(t *testing.T) {
 }
 
 func TestEvenHandler4(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
 	err := eh.SubscribeP(id, "EventWorkerError", nil)
@@ -88,10 +87,10 @@ func TestEvenHandler4(t *testing.T) {
 }
 
 func TestEvenHandler5(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "http.EventWorkerError", ch)
 	require.NoError(t, err)
 
@@ -122,10 +121,10 @@ func (mse MySuperEvent) String() string {
 }
 
 func TestEvenHandler6(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "http.EventHTTPError", ch)
 	require.NoError(t, err)
 
@@ -140,10 +139,10 @@ func TestEvenHandler6(t *testing.T) {
 }
 
 func TestEvenHandler7(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeAll(id, ch)
 	require.NoError(t, err)
 
@@ -158,7 +157,7 @@ func TestEvenHandler7(t *testing.T) {
 }
 
 func TestEvenHandler8(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
 	err := eh.SubscribeAll(id, nil)
@@ -168,10 +167,10 @@ func TestEvenHandler8(t *testing.T) {
 }
 
 func TestEvenHandler9(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "http.EventWorkerError", ch)
 	require.NoError(t, err)
 
@@ -195,10 +194,10 @@ func TestEvenHandler9(t *testing.T) {
 }
 
 func TestEvenHandler10(t *testing.T) {
-	eh, id := Bus()
+	eh, id := NewEventBus()
 	defer eh.Unsubscribe(id)
 
-	ch := make(chan event_bus.Event, 100)
+	ch := make(chan Event, 100)
 	err := eh.SubscribeP(id, "http.EventHTTPError", ch)
 	require.NoError(t, err)
 	err = eh.SubscribeP(id, "http.Foo", ch)
