@@ -12,7 +12,7 @@ require (
 	github.com/roadrunner-server/tcplisten v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.0
-	go.buf.build/protocolbuffers/go/roadrunner-server/api v1.3.12
+	go.buf.build/protocolbuffers/go/roadrunner-server/api v1.3.14
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.23.0
 	golang.org/x/sync v0.1.0
