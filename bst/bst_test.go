@@ -197,14 +197,11 @@ func BenchmarkBigSearchWithRemoves(b *testing.B) {
 
 	go func() {
 		tt := time.NewTicker(time.Millisecond)
-		for {
-			select {
-			case <-tt.C:
-				num := rand.Intn(333) //nolint:gosec
-				values := g1.Get(predefinedSlice[num])
-				for k := range values {
-					g1.Remove(k, predefinedSlice[num])
-				}
+		for range tt.C {
+			num := rand.Intn(333) //nolint:gosec
+			values := g1.Get(predefinedSlice[num])
+			for k := range values {
+				g1.Remove(k, predefinedSlice[num])
 			}
 		}
 	}()

@@ -158,28 +158,25 @@ func (eb *Bus) subscribe(subID string, pattern string, ch chan<- Event) error {
 }
 
 func (eb *Bus) handleEvents() {
-	for { //nolint:gosimple
-		select {
-		case ev := <-eb.internalEvCh:
-			// http.WorkerError for example
-			wc := fmt.Sprintf("%s.%s", ev.Plugin(), ev.Type().String())
+	for ev := range eb.internalEvCh {
+		// http.WorkerError for example
+		wc := fmt.Sprintf("%s.%s", ev.Plugin(), ev.Type().String())
 
-			eb.subscribers.Range(func(key, value any) bool {
-				vsub := value.([]*sub)
+		eb.subscribers.Range(func(key, value any) bool {
+			vsub := value.([]*sub)
 
-				for i := 0; i < len(vsub); i++ {
-					if vsub[i].w.match(wc) {
-						select {
-						case vsub[i].events <- ev:
-							return true
-						default:
-							return true
-						}
+			for i := 0; i < len(vsub); i++ {
+				if vsub[i].w.match(wc) {
+					select {
+					case vsub[i].events <- ev:
+						return true
+					default:
+						return true
 					}
 				}
+			}
 
-				return true
-			})
-		}
+			return true
+		})
 	}
 }

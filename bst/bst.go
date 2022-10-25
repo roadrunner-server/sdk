@@ -110,7 +110,7 @@ func (b *BST) removeHelper(uuid string, topic string, parent *BST) {
 				curr.topic, curr.uuids = curr.right.traverseForMinString()
 				curr.right.removeHelper(curr.topic, uuid, curr)
 			} else if parent == nil {
-				if curr.left != nil { //nolint:gocritic
+				if curr.left != nil {
 					curr.topic = curr.left.topic
 					curr.uuids = curr.left.uuids
 
@@ -122,8 +122,6 @@ func (b *BST) removeHelper(uuid string, topic string, parent *BST) {
 
 					curr.left = curr.right.left
 					curr.right = curr.right.right
-				} else { //nolint:staticcheck
-					// single node tree
 				}
 			} else if parent.left == curr {
 				if curr.left != nil {

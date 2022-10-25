@@ -281,7 +281,7 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 		rsp, err := w.execPayload(p)
 		if err != nil {
 			// just to be more verbose
-			if errors.Is(errors.SoftJob, err) == false { //nolint:gosimple
+			if !errors.Is(errors.SoftJob, err) {
 				w.State().Transition(fsm.StateErrored)
 				w.State().RegisterExec()
 			}

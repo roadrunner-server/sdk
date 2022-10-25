@@ -62,7 +62,6 @@ func TestBinHeap_MaxLen(t *testing.T) {
 			res = append(res, item)
 		}
 		require.Equal(t, 11, len(res))
-		return
 	}()
 
 	time.Sleep(time.Second)
@@ -97,9 +96,9 @@ func TestNewPriorityQueue(t *testing.T) {
 		for {
 			select {
 			case <-tt.C:
-				fmt.Println(fmt.Sprintf("Insert per second: %d", atomic.LoadUint64(&insertsPerSec)))
+				fmt.Printf("Insert per second: %d\n", atomic.LoadUint64(&insertsPerSec))
 				atomic.StoreUint64(&insertsPerSec, 0)
-				fmt.Println(fmt.Sprintf("ExtractMin per second: %d", atomic.LoadUint64(&getPerSec)))
+				fmt.Printf("ExtractMin per second: %d\n", atomic.LoadUint64(&getPerSec))
 				atomic.StoreUint64(&getPerSec, 0)
 			case <-stopCh:
 				tt.Stop()
