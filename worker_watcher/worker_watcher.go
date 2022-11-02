@@ -12,8 +12,8 @@ import (
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/fsm"
 	"github.com/roadrunner-server/sdk/v3/utils"
-	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"github.com/roadrunner-server/sdk/v3/worker_watcher/container/channel"
 	"go.uber.org/zap"
 )

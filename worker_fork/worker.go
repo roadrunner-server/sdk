@@ -5,11 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/roadrunner-server/errors"
@@ -36,11 +35,6 @@ type Process struct {
 	// and atomic counter.
 	fsm *fsm.Fsm
 
-	// underlying command with associated process, command must be
-	// provided to Process from outside in non-started form. CmdSource
-	// stdErr direction will be handled by Process to aggregate error message.
-	cmd *exec.Cmd
-
 	// pid of the process, points to pid of underlying process and
 	// can be nil while process is not started.
 	pid int
@@ -56,14 +50,14 @@ type Process struct {
 }
 
 // InitBaseWorker creates new Process over given exec.cmd.
-func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
-	if cmd.Process != nil {
-		return nil, fmt.Errorf("can't attach to running process")
+func InitBaseWorker(pid int, options ...Options) (*Process, error) {
+	if pid == 0 {
+		return nil, fmt.Errorf("can't attach to the base process")
 	}
 
 	w := &Process{
 		created: time.Now(),
-		cmd:     cmd,
+		pid:     pid,
 		doneCh:  make(chan struct{}, 1),
 
 		fPool: sync.Pool{
@@ -102,10 +96,10 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	w.fsm = fsm.NewFSM(fsm.StateInactive)
 
 	// set self as stderr implementation (Writer interface)
-	rc, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
+	//rc, err := cmd.StderrPipe()
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	go func() {
 		// https://linux.die.net/man/7/pipe
@@ -168,15 +162,6 @@ func (w *Process) String() string {
 	)
 }
 
-func (w *Process) Start() error {
-	err := w.cmd.Start()
-	if err != nil {
-		return err
-	}
-	w.pid = w.cmd.Process.Pid
-	return nil
-}
-
 // Wait must be called once for each Process, call will be released once Process is
 // complete and will return process error (if any), if stderr is presented it is value
 // will be wrapped as WorkerError. Method will return error code if php process fails
@@ -184,7 +169,18 @@ func (w *Process) Start() error {
 func (w *Process) Wait() error {
 	const op = errors.Op("process_wait")
 	var err error
-	err = w.cmd.Wait()
+
+	var (
+		status syscall.WaitStatus
+		rusage syscall.Rusage
+	)
+
+	// https://man7.org/linux/man-pages/man2/wait4.2.html
+	pid1, e := syscall.Wait4(w.pid, &status, 0, &rusage)
+	if e != syscall.EINTR {
+		return nil
+	}
+
 	w.doneCh <- struct{}{}
 
 	// If worker was destroyed, just exit
@@ -355,7 +351,7 @@ func (w *Process) Stop() error {
 		// kill process
 		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
 		w.fsm.Transition(fsm.StateKilling)
-		_ = w.cmd.Process.Signal(os.Kill)
+		_ = syscall.Kill(w.pid, syscall.SIGKILL)
 		w.fsm.Transition(fsm.StateStopped)
 		return errors.E(op, errors.Network)
 	}

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/roadrunner-server/sdk/v3/fsm"
 	"github.com/roadrunner-server/sdk/v3/ipc/pipe"
 	"github.com/roadrunner-server/sdk/v3/payload"
 	"github.com/roadrunner-server/sdk/v3/pool"
-	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

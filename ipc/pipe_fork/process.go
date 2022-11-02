@@ -1,4 +1,6 @@
-package pipe
+//go:build linux || darwin
+
+package pipefork
 
 import (
 	"context"
@@ -12,18 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Factory connects to stack using standard
-// streams (STDIN, STDOUT pipes).
-type Factory struct {
+type PipeFork struct {
 	log *zap.Logger
 }
 
-// NewPipeFactory returns new factory instance and starts
-// listening
-func NewPipeFactory(log *zap.Logger) *Factory {
-	return &Factory{
-		log: log,
-	}
+func NewPipeFork() *PipeFork {
+	return &PipeFork{}
 }
 
 type sr struct {
@@ -33,7 +29,7 @@ type sr struct {
 
 // SpawnWorkerWithTimeout creates new Process and connects it to goridge relay,
 // method Wait() must be handled on level above.
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *PipeFork) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
 	spCh := make(chan sr)
 	go func() {
 		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
@@ -140,7 +136,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 	}
 }
 
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
+func (f *PipeFork) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
 	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 	if err != nil {
 		return nil, err
@@ -179,6 +175,6 @@ func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
 }
 
 // Close the factory.
-func (f *Factory) Close() error {
+func (f *PipeFork) Close() error {
 	return nil
 }

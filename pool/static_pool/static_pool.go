@@ -7,12 +7,12 @@ import (
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v3/events"
+	"github.com/roadrunner-server/sdk/v3/fsm"
 	"github.com/roadrunner-server/sdk/v3/payload"
 	"github.com/roadrunner-server/sdk/v3/pool"
 	"github.com/roadrunner-server/sdk/v3/pool/err_actions"
 	"github.com/roadrunner-server/sdk/v3/utils"
 	"github.com/roadrunner-server/sdk/v3/worker"
-	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	workerWatcher "github.com/roadrunner-server/sdk/v3/worker_watcher"
 	"go.uber.org/zap"
 )
