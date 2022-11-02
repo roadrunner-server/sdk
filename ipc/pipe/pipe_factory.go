@@ -6,9 +6,9 @@ import (
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/pipe"
+	"github.com/roadrunner-server/sdk/v3/fsm"
 	"github.com/roadrunner-server/sdk/v3/internal"
 	"github.com/roadrunner-server/sdk/v3/worker"
-	"github.com/roadrunner-server/sdk/v3/worker/fsm"
 	"go.uber.org/zap"
 )
 

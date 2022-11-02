@@ -5,14 +5,14 @@ go 1.19
 require (
 	github.com/goccy/go-json v0.9.11
 	github.com/google/uuid v1.3.0
-	github.com/prometheus/client_golang v1.13.0
+	github.com/prometheus/client_golang v1.13.1
 	// spiral
 	github.com/roadrunner-server/errors v1.2.0
 	github.com/roadrunner-server/goridge/v3 v3.6.1
 	github.com/roadrunner-server/tcplisten v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.1
-	go.buf.build/protocolbuffers/go/roadrunner-server/api v1.3.20
+	go.buf.build/protocolbuffers/go/roadrunner-server/api v1.3.27
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.23.0
 	golang.org/x/sync v0.1.0
