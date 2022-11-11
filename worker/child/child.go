@@ -1,15 +1,18 @@
-package worker
+package child
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
@@ -23,6 +26,12 @@ import (
 
 type Options func(p *Process)
 
+func WithLog(z *zap.Logger) Options {
+	return func(p *Process) {
+		p.log = z
+	}
+}
+
 // Process - supervised process with api over goridge.Relay.
 type Process struct {
 	// created indicates at what time Process has been created.
@@ -35,9 +44,16 @@ type Process struct {
 	// and atomic counter.
 	fsm *fsm.Fsm
 
+	// underlying command with associated process, command must be
+	// provided to Process from outside in non-started form. CmdSource
+	// stdErr direction will be handled by Process to aggregate error message.
+	cmd *exec.Cmd
+
 	// pid of the process, points to pid of underlying process and
 	// can be nil while process is not started.
 	pid int
+	// process args
+	args []string
 
 	fPool  sync.Pool
 	bPool  sync.Pool
@@ -49,8 +65,13 @@ type Process struct {
 	relay relay.Relay
 }
 
-// InitBaseWorker creates new Process over given exec.cmd.
-func InitBaseWorker(pid int, options ...Options) (*Process, error) {
+type wexec struct {
+	payload *payload.Payload
+	err     error
+}
+
+// InitChildWorker creates new child PHP Process.
+func InitChildWorker(pid int, args []string, options ...Options) (*Process, error) {
 	if pid == 0 {
 		return nil, fmt.Errorf("can't attach to the base process")
 	}
@@ -58,6 +79,7 @@ func InitBaseWorker(pid int, options ...Options) (*Process, error) {
 	w := &Process{
 		created: time.Now(),
 		pid:     pid,
+		args:    args,
 		doneCh:  make(chan struct{}, 1),
 
 		fPool: sync.Pool{
@@ -76,8 +98,7 @@ func InitBaseWorker(pid int, options ...Options) (*Process, error) {
 			New: func() any {
 				return make(chan wexec, 1)
 			},
-		},
-	}
+		}}
 
 	// add options
 	for i := 0; i < len(options); i++ {
@@ -95,29 +116,7 @@ func InitBaseWorker(pid int, options ...Options) (*Process, error) {
 
 	w.fsm = fsm.NewFSM(fsm.StateInactive)
 
-	// set self as stderr implementation (Writer interface)
-	//rc, err := cmd.StderrPipe()
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	go func() {
-		// https://linux.die.net/man/7/pipe
-		// see pipe capacity
-		buf := make([]byte, 65536)
-		errCopy := copyBuffer(w, rc, buf)
-		if errCopy != nil {
-			w.log.Debug("stderr", zap.Error(errCopy))
-		}
-	}()
-
 	return w, nil
-}
-
-func WithLog(z *zap.Logger) Options {
-	return func(p *Process) {
-		p.log = z
-	}
 }
 
 // Pid returns worker pid.
@@ -156,10 +155,42 @@ func (w *Process) String() string {
 
 	return fmt.Sprintf(
 		"(`%s` [%s], num_execs: %v)",
-		strings.Join(w.cmd.Args, " "),
+		strings.Join(w.args, " "),
 		st,
 		w.fsm.NumExecs(),
 	)
+}
+
+const _P_ALL = 1
+
+// blockUntilWaitable attempts to block until a call to p.Wait will
+// succeed immediately, and reports whether it has done so.
+// It does not actually call p.Wait.
+func (w *Process) blockUntilWaitable(p uintptr) (bool, error) {
+	// The waitid system call expects a pointer to a siginfo_t,
+	// which is 128 bytes on all Linux systems.
+	// On darwin/amd64, it requires 104 bytes.
+	// We don't care about the values it returns.
+	var siginfo [16]uint64
+	psig := &siginfo[0]
+	var e syscall.Errno
+	for {
+		_, _, e = syscall.Syscall6(syscall.SYS_WAITID, _P_ALL, p, uintptr(unsafe.Pointer(psig)), syscall.WUNTRACED, 0, 0)
+		if e != syscall.EINTR {
+			break
+		}
+	}
+	runtime.KeepAlive(w)
+	if e != 0 {
+		// waitid has been available since Linux 2.6.9, but
+		// reportedly is not available in Ubuntu on Windows.
+		// See issue 16610.
+		if e == syscall.ENOSYS {
+			return false, nil
+		}
+		return false, os.NewSyscallError("waitid", e)
+	}
+	return true, nil
 }
 
 // Wait must be called once for each Process, call will be released once Process is
@@ -167,31 +198,45 @@ func (w *Process) String() string {
 // will be wrapped as WorkerError. Method will return error code if php process fails
 // to find or Start the script.
 func (w *Process) Wait() error {
-	const op = errors.Op("process_wait")
-	var err error
+	// pidfd_open
+	const SYS_PIDFD_OPEN = 434
 
 	var (
 		status syscall.WaitStatus
 		rusage syscall.Rusage
+		pid1   int
+		err    error
 	)
-
-	// https://man7.org/linux/man-pages/man2/wait4.2.html
-	pid1, e := syscall.Wait4(w.pid, &status, 0, &rusage)
-	if e != syscall.EINTR {
-		return nil
+	for {
+		pid1, err = syscall.Wait4(w.pid, &status, 0, &rusage)
+		if err != syscall.EINTR {
+			break
+		}
+	}
+	if err != nil {
+		return os.NewSyscallError("wait", err)
 	}
 
+	_ = pid1
+
+	//fd, _, errno := syscall.Syscall(SYS_PIDFD_OPEN, uintptr(w.pid), uintptr(0), uintptr(0))
+	//if errno != 0 {
+	//	return os.NewSyscallError("SYS_PIDFD_OPEN", errno)
+	//}
+	//
+	//res, err := w.blockUntilWaitable(fd)
+	//if err != nil {
+	//	return os.NewSyscallError("wait", err)
+	//}
+	//
+	//_ = res
+
+	w.State().Transition(fsm.StateStopped)
 	w.doneCh <- struct{}{}
 
 	// If worker was destroyed, just exit
 	if w.State().Compare(fsm.StateDestroyed) {
 		return nil
-	}
-
-	// If state is different, and err is not nil, append it to the errors
-	if err != nil {
-		w.State().Transition(fsm.StateErrored)
-		err = multierr.Combine(err, errors.E(op, err))
 	}
 
 	// closeRelay
@@ -201,12 +246,7 @@ func (w *Process) Wait() error {
 	err2 := w.closeRelay()
 	if err2 != nil {
 		w.State().Transition(fsm.StateErrored)
-		return multierr.Append(err, errors.E(op, err2))
-	}
-
-	if w.cmd.ProcessState.Success() {
-		w.State().Transition(fsm.StateStopped)
-		return nil
+		return multierr.Append(err, err2)
 	}
 
 	return err
@@ -247,11 +287,6 @@ func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
 	w.State().Transition(fsm.StateReady)
 
 	return rsp, nil
-}
-
-type wexec struct {
-	payload *payload.Payload
-	err     error
 }
 
 // ExecWithTTL executes payload without TTL timeout.
@@ -328,84 +363,6 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 	}
 }
 
-// Stop sends soft termination command to the Process and waits for process completion.
-func (w *Process) Stop() error {
-	const op = errors.Op("process_stop")
-
-	go func() {
-		w.fsm.Transition(fsm.StateStopping)
-		w.log.Debug("sending stop request to the worker", zap.Int("pid", w.pid))
-		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
-		if err == nil {
-			w.fsm.Transition(fsm.StateStopped)
-		}
-	}()
-
-	select {
-	// finished, sent to the doneCh is made in the Wait() method
-	// If we successfully sent a stop request, Wait() method will send a struct{} to the doneCh and we're done here
-	// otherwise we have 10 seconds before we kill the process
-	case <-w.doneCh:
-		return nil
-	case <-time.After(time.Second * 10):
-		// kill process
-		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
-		w.fsm.Transition(fsm.StateKilling)
-		_ = syscall.Kill(w.pid, syscall.SIGKILL)
-		w.fsm.Transition(fsm.StateStopped)
-		return errors.E(op, errors.Network)
-	}
-}
-
-// Kill kills underlying process, make sure to call Wait() func to gather
-// error log from the stderr. Does not wait for process completion!
-func (w *Process) Kill() error {
-	w.fsm.Transition(fsm.StateKilling)
-	err := w.cmd.Process.Kill()
-	if err != nil {
-		return err
-	}
-	w.fsm.Transition(fsm.StateStopped)
-	return nil
-}
-
-// Worker stderr
-func (w *Process) Write(p []byte) (int, error) {
-	// unsafe to use utils.AsString
-	w.log.Info(string(p))
-	return len(p), nil
-}
-
-// copyBuffer is the actual implementation of Copy and CopyBuffer.
-func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
-	for {
-		nr, er := src.Read(buf)
-		if nr > 0 {
-			nw, ew := dst.Write(buf[0:nr])
-			if nw < 0 || nr < nw {
-				nw = 0
-				if ew == nil {
-					ew = errors.Str("invalid write result")
-				}
-			}
-			if ew != nil {
-				return ew
-			}
-			if nr != nw {
-				return io.ErrShortWrite
-			}
-		}
-		if er != nil {
-			if er != io.EOF {
-				return er
-			}
-			break
-		}
-	}
-
-	return nil
-}
-
 func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("sync_worker_exec_payload")
 
@@ -478,6 +435,54 @@ func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
 	copy(pld.Context, frameR.Payload()[:options[0]])
 
 	return pld, nil
+}
+
+// Stop sends soft termination command to the Process and waits for process completion.
+func (w *Process) Stop() error {
+	const op = errors.Op("process_stop")
+
+	go func() {
+		w.fsm.Transition(fsm.StateStopping)
+		w.log.Debug("sending stop request to the worker", zap.Int("pid", w.pid))
+		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
+		if err == nil {
+			w.fsm.Transition(fsm.StateStopped)
+		}
+	}()
+
+	select {
+	// finished, sent to the doneCh is made in the Wait() method
+	// If we successfully sent a stop request, Wait() method will send a struct{} to the doneCh and we're done here
+	// otherwise we have 10 seconds before we kill the process
+	case <-w.doneCh:
+		return nil
+	case <-time.After(time.Second * 10):
+		// kill process
+		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
+		w.fsm.Transition(fsm.StateKilling)
+		_ = syscall.Kill(w.pid, syscall.SIGKILL)
+		w.fsm.Transition(fsm.StateStopped)
+		return errors.E(op, errors.Network)
+	}
+}
+
+// Kill kills underlying process, make sure to call Wait() func to gather
+// error log from the stderr. Does not wait for process completion!
+func (w *Process) Kill() error {
+	w.fsm.Transition(fsm.StateKilling)
+	err := syscall.Kill(w.pid, syscall.SIGKILL)
+	if err != nil {
+		return err
+	}
+	w.fsm.Transition(fsm.StateStopped)
+	return nil
+}
+
+// Worker stderr
+func (w *Process) Write(p []byte) (int, error) {
+	// unsafe to use utils.AsString
+	w.log.Info(string(p))
+	return len(p), nil
 }
 
 func (w *Process) closeRelay() error {

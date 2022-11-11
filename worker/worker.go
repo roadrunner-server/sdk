@@ -373,6 +373,15 @@ func (w *Process) Kill() error {
 	return nil
 }
 
+func (w *Process) Fork() (int, error) {
+	pid, err := internal.Fork(w.Relay())
+	if err != nil {
+		return 0, err
+	}
+
+	return pid, nil
+}
+
 // Worker stderr
 func (w *Process) Write(p []byte) (int, error) {
 	// unsafe to use utils.AsString

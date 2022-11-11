@@ -14,6 +14,7 @@ import (
 	"github.com/roadrunner-server/sdk/v3/fsm"
 	"github.com/roadrunner-server/sdk/v3/internal"
 	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v3/worker/child"
 	"github.com/shirou/gopsutil/process"
 	"go.uber.org/zap"
 
@@ -75,6 +76,8 @@ func (f *Factory) listen() error {
 				return err
 			}
 
+			fmt.Printf("--------------------->pid: %d\n", pid)
+
 			f.attachRelayToPid(pid, rl)
 		}
 	})
@@ -82,19 +85,23 @@ func (f *Factory) listen() error {
 	return errGr.Wait()
 }
 
-type socketSpawn struct {
-	w   *worker.Process
+type proc interface {
+	*worker.Process | *child.Process
+}
+
+type socketSpawn[T proc] struct {
+	w   T
 	err error
 }
 
 // SpawnWorkerWithTimeout creates Process and connects it to appropriate relay or return an error
 func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
-	c := make(chan socketSpawn)
+	c := make(chan socketSpawn[*worker.Process])
 	go func() {
 		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 		if err != nil {
 			select {
-			case c <- socketSpawn{
+			case c <- socketSpawn[*worker.Process]{
 				w:   nil,
 				err: err,
 			}:
@@ -107,7 +114,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 		err = w.Start()
 		if err != nil {
 			select {
-			case c <- socketSpawn{
+			case c <- socketSpawn[*worker.Process]{
 				w:   nil,
 				err: err,
 			}:
@@ -122,7 +129,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 			_ = w.Kill()
 			select {
 			// try to write result
-			case c <- socketSpawn{
+			case c <- socketSpawn[*worker.Process]{
 				w:   nil,
 				err: err,
 			}:
@@ -137,7 +144,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 		w.State().Transition(fsm.StateReady)
 
 		select {
-		case c <- socketSpawn{
+		case c <- socketSpawn[*worker.Process]{
 			w:   w,
 			err: nil,
 		}:
@@ -191,13 +198,90 @@ func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
 	return w, nil
 }
 
+// ForkWorker creates Process and connects it to appropriate relay or return an error
+func (f *Factory) ForkWorker(ctx context.Context, w *worker.Process) (*child.Process, error) {
+	c := make(chan socketSpawn[*child.Process])
+	go func() {
+		pid, err := w.Fork()
+		if err != nil {
+			select {
+			case c <- socketSpawn[*child.Process]{
+				w:   nil,
+				err: err,
+			}:
+				return
+			default:
+				return
+			}
+		}
+
+		w, err := child.InitChildWorker(pid, nil, child.WithLog(f.log))
+		if err != nil {
+			select {
+			case c <- socketSpawn[*child.Process]{
+				w:   nil,
+				err: err,
+			}:
+				return
+			default:
+				return
+			}
+		}
+
+		rl, err := f.findRelayWithContext(ctx, w)
+		if err != nil {
+			_ = w.Kill()
+			select {
+			// try to write result
+			case c <- socketSpawn[*child.Process]{
+				w:   nil,
+				err: err,
+			}:
+				return
+				// if no receivers - return
+			default:
+				return
+			}
+		}
+
+		w.AttachRelay(rl)
+		w.State().Transition(fsm.StateReady)
+
+		select {
+		case c <- socketSpawn[*child.Process]{
+			w:   w,
+			err: nil,
+		}:
+			return
+		default:
+			_ = w.Kill()
+			return
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, errors.E(errors.TimeOut)
+	case res := <-c:
+		if res.err != nil {
+			return nil, res.err
+		}
+
+		return res.w, nil
+	}
+}
+
 // Close socket factory and underlying socket connection.
 func (f *Factory) Close() error {
 	return f.ls.Close()
 }
 
+type wrk interface {
+	Pid() int64
+}
+
 // waits for Process to connect over socket and returns associated relay of timeout
-func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (*socket.Relay, error) {
+func (f *Factory) findRelayWithContext(ctx context.Context, w wrk) (*socket.Relay, error) {
 	ticker := time.NewTicker(time.Millisecond * 10)
 	for {
 		select {

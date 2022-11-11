@@ -1,20 +1,74 @@
 package socket
 
 import (
+	"context"
 	"net"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/sdk/v3/payload"
+	"github.com/roadrunner-server/sdk/v3/pool"
+	"github.com/roadrunner-server/sdk/v3/pool/fork_pool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 var log = zap.NewNop()
+
+var testCfg = &pool.Config{
+	AllocateTimeout: time.Second * 500,
+	DestroyTimeout:  time.Second * 500,
+}
+
+func Test1(t *testing.T) {
+	log, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.RemoveAll("sock.unix")
+
+	ls, err := net.Listen("unix", "sock.unix")
+	assert.NoError(t, err)
+	defer func() {
+		err = ls.Close()
+		assert.NoError(t, err)
+	}()
+
+	p, err := fork_pool.NewMasterWorker(
+		context.Background(),
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "unix") }, NewSocketServer(ls, time.Minute, log), testCfg, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	np, err := p.Fork(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		np.Wait()
+	}()
+
+	_, err = np.ExecWithTTL(context.Background(), &payload.Payload{
+		Context: nil,
+		Body:    []byte("hello"),
+		Codec:   frame.CodecJSON,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(time.Second * 500)
+
+}
 
 func Test_Tcp_Start2(t *testing.T) {
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")

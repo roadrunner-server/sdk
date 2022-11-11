@@ -18,6 +18,10 @@ type pidCommand struct {
 	Pid int `json:"pid"`
 }
 
+type forkCommand struct {
+	Fork int `json:"fork"`
+}
+
 var fPool = sync.Pool{New: func() any {
 	return frame.NewFrame()
 }}
@@ -108,4 +112,42 @@ func Pid(rl relay.Relay) (int64, error) {
 	}
 
 	return int64(link.Pid), nil
+}
+
+func Fork(rl relay.Relay) (int, error) {
+	err := SendControl(rl, forkCommand{Fork: os.Getpid()})
+	if err != nil {
+		return 0, err
+	}
+
+	fr := getFrame()
+	defer putFrame(fr)
+
+	err = rl.Receive(fr)
+	if err != nil {
+		return 0, err
+	}
+
+	if fr == nil {
+		return 0, errors.Str("nil frame received")
+	}
+
+	flags := fr.ReadFlags()
+
+	if flags&frame.CONTROL == 0 {
+		return 0, errors.Str("unexpected response, header is missing, no CONTROL flag")
+	}
+
+	// we sent a forkCommand, but receiving just a PID (child)
+	link := &pidCommand{}
+	err = json.Unmarshal(fr.Payload(), link)
+	if err != nil {
+		return 0, err
+	}
+
+	if link.Pid == 0 {
+		return 0, errors.Str("pid should be greater than 0")
+	}
+
+	return link.Pid, nil
 }
