@@ -678,6 +678,40 @@ func Test_Static_Pool_Slow_Destroy(t *testing.T) {
 	p.Destroy(context.Background())
 }
 
+func Test_StaticPool_ResetTimeout(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewPool(
+		ctx,
+		// sleep for the 3 seconds
+		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php", "pipes") },
+		pipe.NewPipeFactory(log),
+		&pool.Config{
+			Debug:           false,
+			NumWorkers:      2,
+			AllocateTimeout: time.Second * 100,
+			DestroyTimeout:  time.Second * 100,
+			ResetTimeout:    time.Second * 3,
+		},
+		log,
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	go func() {
+		_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	}()
+
+	time.Sleep(time.Second)
+
+	err = p.Reset(ctx)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		p.Destroy(ctx)
+	})
+}
+
 func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 	ctx := context.Background()
 

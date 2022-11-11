@@ -202,13 +202,19 @@ func (sp *Pool) QueueSize() uint64 {
 
 // Destroy all underlying stack (but let them complete the task).
 func (sp *Pool) Destroy(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
+	defer cancel()
 	sp.ww.Destroy(ctx)
 	atomic.StoreUint64(&sp.queue, 0)
 }
 
 func (sp *Pool) Reset(ctx context.Context) error {
-	// destroy all workers
+	// set timeout
+	ctx, cancel := context.WithTimeout(ctx, sp.cfg.ResetTimeout)
+	defer cancel()
+	// reset all workers
 	sp.ww.Reset(ctx)
+	// re-allocate all workers
 	workers, err := pool.AllocateParallel(sp.cfg.NumWorkers, sp.allocator)
 	if err != nil {
 		return err
