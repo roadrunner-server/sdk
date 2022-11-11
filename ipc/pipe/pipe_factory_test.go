@@ -169,36 +169,6 @@ func Test_Pipe_Echo(t *testing.T) {
 	assert.Equal(t, "hello", res.String())
 }
 
-func Test_Pipe_Echo_Script(t *testing.T) {
-	t.Skip("not supported")
-	cmd := exec.Command("sh", "../../tests/pipes_test_script.sh")
-	ctx := context.Background()
-	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		err = w.Stop()
-		if err != nil {
-			t.Errorf("error stopping the Process: error %v", err)
-		}
-	}()
-
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
-	assert.NoError(t, err)
-	assert.NotNil(t, res)
-	assert.NotNil(t, res.Body)
-	assert.Empty(t, res.Context)
-
-	go func() {
-		if w.Wait() != nil {
-			t.Fail()
-		}
-	}()
-
-	assert.Equal(t, "hello", res.String())
-}
-
 func Test_Pipe_Broken(t *testing.T) {
 	t.Parallel()
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "pipes")

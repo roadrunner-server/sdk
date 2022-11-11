@@ -216,11 +216,6 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 		case <-tt.C:
 			ww.RLock()
 
-			if ww.container.Len() == 0 {
-				ww.RUnlock()
-				goto drain
-			}
-
 			// that might be one of the workers is working
 			// to proceed, all workers should be inside a channel
 			if atomic.LoadUint64(ww.numWorkers) != uint64(ww.container.Len()) {
@@ -230,7 +225,6 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 			ww.RUnlock()
 			// All workers at this moment are in the container
 			// Pop operation is blocked, push can't be done, since it's not possible to pop
-		drain:
 			ww.Lock()
 
 			// drain channel
@@ -268,13 +262,12 @@ func (ww *WorkerWatcher) Reset(ctx context.Context) {
 			wg.Add(len(ww.workers))
 
 			for _, v := range ww.workers {
-				v := v
-				go func() {
+				go func(w *worker.Process) {
 					defer wg.Done()
-					v.State().Transition(fsm.StateDestroyed)
+					w.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = v.Stop()
-				}()
+					_ = w.Stop()
+				}(v)
 			}
 
 			wg.Wait()
@@ -303,39 +296,29 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 	for {
 		select {
 		case <-tt.C:
-			/*
-				Edge case mostly occurred in reload plugin. When worker is broken, RR can't allocate more of them.
-				So, there is 0 ww.workers len, and it is never equal to the ww.numWorkers
-			*/
 			ww.RLock()
-			if ww.container.Len() == 0 {
-				ww.RUnlock()
-				goto drain
-			}
-
 			// that might be one of the workers is working
 			if atomic.LoadUint64(ww.numWorkers) != uint64(ww.container.Len()) {
 				ww.RUnlock()
 				continue
 			}
+
 			ww.RUnlock()
 			// All container at this moment are in the container
 			// Pop operation is blocked, push can't be done, since it's not possible to pop
 
-		drain:
 			ww.Lock()
-			// drain channel
+			// drain channel, will not actually pop, only drain a channel
 			_, _ = ww.container.Pop(ctx)
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
 			for _, v := range ww.workers {
-				v := v
-				go func() {
+				go func(w *worker.Process) {
 					defer wg.Done()
-					v.State().Transition(fsm.StateDestroyed)
+					w.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = v.Stop()
-				}()
+					_ = w.Stop()
+				}(v)
 			}
 
 			wg.Wait()

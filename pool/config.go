@@ -18,7 +18,7 @@ type Config struct {
 	NumWorkers uint64 `mapstructure:"num_workers"`
 
 	// MaxJobs defines how many executions is allowed for the worker until
-	// it's destruction. set 1 to create new process for each new task, 0 to let
+	// its destruction. set 1 to create new process for each new task, 0 to let
 	// worker handle as many tasks as it can.
 	MaxJobs uint64 `mapstructure:"max_jobs"`
 
@@ -29,6 +29,9 @@ type Config struct {
 	// DestroyTimeout defines for how long pool should be waiting for worker to
 	// properly destroy, if timeout reached worker will be killed. Defaults to 60s.
 	DestroyTimeout time.Duration `mapstructure:"destroy_timeout"`
+
+	// ResetTimeout defines how long pool should wait before start killing workers
+	ResetTimeout time.Duration `mapstructure:"reset_timeout"`
 
 	// Supervision config to limit worker and pool memory usage.
 	Supervisor *SupervisorConfig `mapstructure:"supervisor"`
@@ -47,6 +50,11 @@ func (cfg *Config) InitDefaults() {
 	if cfg.DestroyTimeout == 0 {
 		cfg.DestroyTimeout = time.Minute
 	}
+
+	if cfg.ResetTimeout == 0 {
+		cfg.ResetTimeout = time.Minute
+	}
+
 	if cfg.Supervisor == nil {
 		return
 	}
@@ -57,7 +65,7 @@ type SupervisorConfig struct {
 	// WatchTick defines how often to check the state of worker.
 	WatchTick time.Duration `mapstructure:"watch_tick"`
 
-	// TTL defines maximum time worker is allowed to live.
+	// TTL defines maximum time for the worker is allowed to live.
 	TTL time.Duration `mapstructure:"ttl"`
 
 	// IdleTTL defines maximum duration worker can spend in idle mode. Disabled when 0.
