@@ -337,13 +337,12 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 			wg := &sync.WaitGroup{}
 			wg.Add(len(ww.workers))
 			for _, v := range ww.workers {
-				v := v
-				go func() {
+				go func(w *worker.Process) {
 					defer wg.Done()
-					v.State().Transition(fsm.StateDestroyed)
+					w.State().Transition(fsm.StateDestroyed)
 					// kill the worker
-					_ = v.Stop()
-				}()
+					_ = w.Stop()
+				}(v)
 			}
 
 			wg.Wait()

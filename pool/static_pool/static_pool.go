@@ -202,6 +202,7 @@ func (sp *Pool) QueueSize() uint64 {
 
 // Destroy all underlying stack (but let them complete the task).
 func (sp *Pool) Destroy(ctx context.Context) {
+	sp.log.Info("destroy signal received", zap.Duration("timeout", sp.cfg.DestroyTimeout))
 	ctx, cancel := context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
 	defer cancel()
 	sp.ww.Destroy(ctx)
