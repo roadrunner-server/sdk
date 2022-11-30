@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	// spiral
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/goridge/v3 v3.6.1
+	github.com/roadrunner-server/goridge/v3 v3.6.2
 	github.com/roadrunner-server/tcplisten v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.1
