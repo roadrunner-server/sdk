@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/roadrunner-server/sdk/v3/ipc/pipe"
-	"github.com/roadrunner-server/sdk/v3/payload"
+	"github.com/roadrunner-server/sdk/v4/ipc/pipe"
+	"github.com/roadrunner-server/sdk/v4/payload"
 	"github.com/stretchr/testify/assert"
 )
 

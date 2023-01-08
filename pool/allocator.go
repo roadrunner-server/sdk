@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v3/events"
-	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v4/events"
+	"github.com/roadrunner-server/sdk/v4/worker"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
