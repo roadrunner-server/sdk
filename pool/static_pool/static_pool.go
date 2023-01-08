@@ -6,14 +6,14 @@ import (
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v3/events"
-	"github.com/roadrunner-server/sdk/v3/fsm"
-	"github.com/roadrunner-server/sdk/v3/payload"
-	"github.com/roadrunner-server/sdk/v3/pool"
-	"github.com/roadrunner-server/sdk/v3/pool/err_actions"
-	"github.com/roadrunner-server/sdk/v3/utils"
-	"github.com/roadrunner-server/sdk/v3/worker"
-	workerWatcher "github.com/roadrunner-server/sdk/v3/worker_watcher"
+	"github.com/roadrunner-server/sdk/v4/events"
+	"github.com/roadrunner-server/sdk/v4/fsm"
+	"github.com/roadrunner-server/sdk/v4/payload"
+	"github.com/roadrunner-server/sdk/v4/pool"
+	"github.com/roadrunner-server/sdk/v4/pool/err_actions"
+	"github.com/roadrunner-server/sdk/v4/utils"
+	"github.com/roadrunner-server/sdk/v4/worker"
+	workerWatcher "github.com/roadrunner-server/sdk/v4/worker_watcher"
 	"go.uber.org/zap"
 )
 

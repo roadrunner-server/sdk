@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v3/fsm"
-	"github.com/roadrunner-server/sdk/v3/worker"
+	"github.com/roadrunner-server/sdk/v4/fsm"
+	"github.com/roadrunner-server/sdk/v4/worker"
 )
 
 type Vec struct {
