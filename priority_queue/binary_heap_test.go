@@ -3,14 +3,24 @@ package priorityqueue
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type Test int
+type Test struct {
+	priority int64
+}
+
+func NewTest(priority int64) Test {
+	return Test{
+		priority: priority,
+	}
+}
 
 func (t Test) Body() []byte {
 	return nil
@@ -25,11 +35,23 @@ func (t Test) ID() string {
 }
 
 func (t Test) Priority() int64 {
-	return int64(t)
+	return t.priority
 }
 
 func TestBinHeap_Init(t *testing.T) {
-	a := []Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
+	a := []Item{
+		NewTest(2),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(1),
+		NewTest(2),
+		NewTest(2),
+		NewTest(2),
+		NewTest(4),
+		NewTest(6),
+		NewTest(99),
+	}
 
 	bh := NewBinHeap[Item](12)
 
@@ -37,7 +59,19 @@ func TestBinHeap_Init(t *testing.T) {
 		bh.Insert(a[i])
 	}
 
-	expected := []Item{Test(1), Test(2), Test(2), Test(2), Test(2), Test(4), Test(6), Test(23), Test(33), Test(44), Test(99)}
+	expected := []Item{
+		NewTest(1),
+		NewTest(2),
+		NewTest(2),
+		NewTest(2),
+		NewTest(2),
+		NewTest(4),
+		NewTest(6),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(99),
+	}
 
 	res := make([]Item, 0, 12)
 
@@ -50,7 +84,19 @@ func TestBinHeap_Init(t *testing.T) {
 }
 
 func TestBinHeap_MaxLen(t *testing.T) {
-	a := []Item{Test(2), Test(23), Test(33), Test(44), Test(1), Test(2), Test(2), Test(2), Test(4), Test(6), Test(99)}
+	a := []Item{
+		NewTest(2),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(1),
+		NewTest(2),
+		NewTest(2),
+		NewTest(2),
+		NewTest(4),
+		NewTest(6),
+		NewTest(99),
+	}
 
 	bh := NewBinHeap[Item](1)
 
@@ -125,7 +171,7 @@ func TestNewPriorityQueue(t *testing.T) {
 			case <-stopCh:
 				return
 			default:
-				pq.Insert(Test(rand.Int())) //nolint:gosec
+				pq.Insert(NewTest(rand.Int63())) //nolint:gosec
 				atomic.AddUint64(&insertsPerSec, 1)
 			}
 		}
@@ -136,4 +182,115 @@ func TestNewPriorityQueue(t *testing.T) {
 	stopCh <- struct{}{}
 	stopCh <- struct{}{}
 	stopCh <- struct{}{}
+}
+
+func TestNewItemWithTimeout(t *testing.T) {
+	a := []Item{
+		NewTest(5),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(5),
+		NewTest(5),
+		NewTest(6),
+		NewTest(7),
+		NewTest(8),
+		NewTest(6),
+		NewTest(99),
+	}
+
+	/*
+		first item should be extracted not less than 5 seconds after we call ExtractMin
+		5 seconds is a minimum timeout for our items
+	*/
+	bh := NewBinHeap[Item](100)
+
+	for i := 0; i < len(a); i++ {
+		bh.Insert(a[i])
+	}
+
+	tn := time.Now()
+	item := bh.ExtractMin()
+	assert.Equal(t, int64(5), item.Priority())
+	assert.GreaterOrEqual(t, float64(5), time.Since(tn).Seconds())
+}
+
+func TestItemPeek(t *testing.T) {
+	a := []Item{
+		NewTest(5),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(5),
+		NewTest(5),
+		NewTest(6),
+		NewTest(7),
+		NewTest(8),
+		NewTest(6),
+		NewTest(99),
+	}
+
+	/*
+		first item should be extracted not less than 5 seconds after we call ExtractMin
+		5 seconds is a minimum timeout for our items
+	*/
+	bh := NewBinHeap[Item](100)
+
+	for i := 0; i < len(a); i++ {
+		bh.Insert(a[i])
+	}
+
+	tmp := bh.PeekPriority()
+	assert.Equal(t, int64(5), tmp)
+
+	tn := time.Now()
+	item := bh.ExtractMin()
+	assert.Equal(t, int64(5), item.Priority())
+	assert.GreaterOrEqual(t, float64(5), time.Since(tn).Seconds())
+}
+
+func TestItemPeekConcurrent(t *testing.T) {
+	a := []Item{
+		NewTest(5),
+		NewTest(23),
+		NewTest(33),
+		NewTest(44),
+		NewTest(5),
+		NewTest(5),
+		NewTest(6),
+		NewTest(7),
+		NewTest(8),
+		NewTest(6),
+		NewTest(99),
+	}
+
+	/*
+		first item should be extracted not less than 5 seconds after we call ExtractMin
+		5 seconds is a minimum timeout for our items
+	*/
+	bh := NewBinHeap[Item](100)
+
+	for i := 0; i < len(a); i++ {
+		bh.Insert(a[i])
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			tmp := bh.PeekPriority()
+			_ = tmp
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 11; i++ {
+			min := bh.ExtractMin()
+			_ = min
+		}
+	}()
+
+	wg.Wait()
 }

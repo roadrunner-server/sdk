@@ -75,6 +75,18 @@ func (bh *BinHeap[T]) fixDown(curr, end int) {
 	}
 }
 
+// PeekPriority returns the highest priority
+func (bh *BinHeap[T]) PeekPriority() int64 {
+	bh.cond.L.Lock()
+	defer bh.cond.L.Unlock()
+
+	if bh.Len() > 0 {
+		return bh.items[0].Priority()
+	}
+
+	return -1
+}
+
 func (bh *BinHeap[T]) Len() uint64 {
 	return atomic.LoadUint64(&bh.len)
 }
