@@ -109,7 +109,7 @@ func (bh *BinHeap[T]) Remove(id string) []T {
 		end := ids[i][1] - adjusment
 
 		bh.items = append(bh.items[:start], bh.items[end+1:]...)
-		adjusment = adjusment + (end - start + 1)
+		adjusment += end - start + 1
 	}
 
 	atomic.StoreUint64(&bh.len, uint64(len(bh.items)))
