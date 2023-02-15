@@ -13,10 +13,13 @@ import (
 type Item interface {
 	// Priority returns the Item's priority to sort
 	Priority() int64
+	// ID of the item
+	ID() string
 }
 
 type BinHeap[T Item] struct {
 	items []T
+	st    *stack
 	// find a way to use pointer to the raw data
 	len    uint64
 	maxLen uint64
@@ -26,6 +29,7 @@ type BinHeap[T Item] struct {
 func NewBinHeap[T Item](maxLen uint64) *BinHeap[T] {
 	return &BinHeap[T]{
 		items:  make([]T, 0, 1000),
+		st:     newStack(),
 		len:    0,
 		maxLen: maxLen,
 		cond:   sync.Cond{L: &sync.Mutex{}},
@@ -73,6 +77,45 @@ func (bh *BinHeap[T]) fixDown(curr, end int) {
 			return
 		}
 	}
+}
+
+// Remove removes all elements with the provided ID and returns the slice with them
+func (bh *BinHeap[T]) Remove(id string) []T {
+	bh.cond.L.Lock()
+	defer bh.cond.L.Unlock()
+
+	out := make([]T, 0, 10)
+
+	for i := 0; i < len(bh.items); i++ {
+		if bh.items[i].ID() == id {
+			out = append(out, bh.items[i])
+			bh.st.add(i)
+		}
+	}
+
+	/*
+		for i:=0; i<len(ids); i++ {
+		    interval := ids[i]
+		    interval[0] - beginning of the interval
+		    interval[1] - end of the interval
+		    bh.items = append(bh.items[:interval[0]], bh.items[interval[1]+1:]...)
+		}
+	*/
+
+	ids := bh.st.indices()
+	adjusment := 0
+	for i := 0; i < len(ids); i++ {
+		start := ids[i][0] - adjusment
+		end := ids[i][1] - adjusment
+
+		bh.items = append(bh.items[:start], bh.items[end+1:]...)
+		adjusment = adjusment + (end - start + 1)
+	}
+
+	atomic.StoreUint64(&bh.len, uint64(len(bh.items)))
+	bh.st.clear()
+
+	return out
 }
 
 // PeekPriority returns the highest priority

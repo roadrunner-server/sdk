@@ -8,17 +8,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type Test struct {
 	priority int64
+	id       string
 }
 
-func NewTest(priority int64) Test {
+func NewTest(priority int64, id string) Test {
 	return Test{
 		priority: priority,
+		id:       id,
 	}
 }
 
@@ -31,7 +34,7 @@ func (t Test) Context() ([]byte, error) {
 }
 
 func (t Test) ID() string {
-	return "none"
+	return t.id
 }
 
 func (t Test) Priority() int64 {
@@ -40,17 +43,17 @@ func (t Test) Priority() int64 {
 
 func TestBinHeap_Init(t *testing.T) {
 	a := []Item{
-		NewTest(2),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(1),
-		NewTest(2),
-		NewTest(2),
-		NewTest(2),
-		NewTest(4),
-		NewTest(6),
-		NewTest(99),
+		NewTest(2, uuid.NewString()),
+		NewTest(23, uuid.NewString()),
+		NewTest(33, uuid.NewString()),
+		NewTest(44, uuid.NewString()),
+		NewTest(1, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(4, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(99, uuid.NewString()),
 	}
 
 	bh := NewBinHeap[Item](12)
@@ -59,25 +62,26 @@ func TestBinHeap_Init(t *testing.T) {
 		bh.Insert(a[i])
 	}
 
-	expected := []Item{
-		NewTest(1),
-		NewTest(2),
-		NewTest(2),
-		NewTest(2),
-		NewTest(2),
-		NewTest(4),
-		NewTest(6),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(99),
+	expected := []int64{
+		1,
+		2,
+		2,
+		2,
+		2,
+		4,
+		6,
+		23,
+		33,
+		44,
+		99,
 	}
 
-	res := make([]Item, 0, 12)
+	res := make([]int64, 0, 12)
 
 	for i := 0; i < 11; i++ {
 		item := bh.ExtractMin()
-		res = append(res, item)
+		item.Priority()
+		res = append(res, item.Priority())
 	}
 
 	require.Equal(t, expected, res)
@@ -85,17 +89,17 @@ func TestBinHeap_Init(t *testing.T) {
 
 func TestBinHeap_MaxLen(t *testing.T) {
 	a := []Item{
-		NewTest(2),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(1),
-		NewTest(2),
-		NewTest(2),
-		NewTest(2),
-		NewTest(4),
-		NewTest(6),
-		NewTest(99),
+		NewTest(2, uuid.NewString()),
+		NewTest(23, uuid.NewString()),
+		NewTest(33, uuid.NewString()),
+		NewTest(44, uuid.NewString()),
+		NewTest(1, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(2, uuid.NewString()),
+		NewTest(4, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(99, uuid.NewString()),
 	}
 
 	bh := NewBinHeap[Item](1)
@@ -171,7 +175,7 @@ func TestNewPriorityQueue(t *testing.T) {
 			case <-stopCh:
 				return
 			default:
-				pq.Insert(NewTest(rand.Int63())) //nolint:gosec
+				pq.Insert(NewTest(rand.Int63(), uuid.NewString())) //nolint:gosec
 				atomic.AddUint64(&insertsPerSec, 1)
 			}
 		}
@@ -186,17 +190,17 @@ func TestNewPriorityQueue(t *testing.T) {
 
 func TestNewItemWithTimeout(t *testing.T) {
 	a := []Item{
-		NewTest(5),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(5),
-		NewTest(5),
-		NewTest(6),
-		NewTest(7),
-		NewTest(8),
-		NewTest(6),
-		NewTest(99),
+		NewTest(5, uuid.NewString()),
+		NewTest(23, uuid.NewString()),
+		NewTest(33, uuid.NewString()),
+		NewTest(44, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(7, uuid.NewString()),
+		NewTest(8, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(99, uuid.NewString()),
 	}
 
 	/*
@@ -217,17 +221,17 @@ func TestNewItemWithTimeout(t *testing.T) {
 
 func TestItemPeek(t *testing.T) {
 	a := []Item{
-		NewTest(5),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(5),
-		NewTest(5),
-		NewTest(6),
-		NewTest(7),
-		NewTest(8),
-		NewTest(6),
-		NewTest(99),
+		NewTest(5, uuid.NewString()),
+		NewTest(23, uuid.NewString()),
+		NewTest(33, uuid.NewString()),
+		NewTest(44, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(7, uuid.NewString()),
+		NewTest(8, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(99, uuid.NewString()),
 	}
 
 	/*
@@ -251,17 +255,17 @@ func TestItemPeek(t *testing.T) {
 
 func TestItemPeekConcurrent(t *testing.T) {
 	a := []Item{
-		NewTest(5),
-		NewTest(23),
-		NewTest(33),
-		NewTest(44),
-		NewTest(5),
-		NewTest(5),
-		NewTest(6),
-		NewTest(7),
-		NewTest(8),
-		NewTest(6),
-		NewTest(99),
+		NewTest(5, uuid.NewString()),
+		NewTest(23, uuid.NewString()),
+		NewTest(33, uuid.NewString()),
+		NewTest(44, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(5, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(7, uuid.NewString()),
+		NewTest(8, uuid.NewString()),
+		NewTest(6, uuid.NewString()),
+		NewTest(99, uuid.NewString()),
 	}
 
 	/*
@@ -293,4 +297,54 @@ func TestItemPeekConcurrent(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestBinHeap_Remove(t *testing.T) {
+	a := []Item{
+		NewTest(2, "1"),
+		NewTest(5, "1"),
+		NewTest(99, "1"),
+		NewTest(4, "6"),
+		NewTest(6, "7"),
+		NewTest(23, "2"),
+		NewTest(2, "1"),
+		NewTest(2, "1"),
+		NewTest(33, "3"),
+		NewTest(44, "4"),
+		NewTest(2, "1"),
+	}
+
+	bh := NewBinHeap[Item](12)
+
+	for i := 0; i < len(a); i++ {
+		bh.Insert(a[i])
+	}
+
+	expected := []Item{
+		NewTest(4, "6"),
+		NewTest(6, "7"),
+		NewTest(23, "2"),
+		NewTest(33, "3"),
+		NewTest(44, "4"),
+	}
+
+	out := bh.Remove("1")
+	if len(out) != 6 {
+		t.Fatal("should be 5")
+	}
+
+	for i := 0; i < len(out); i++ {
+		if out[i].ID() != "1" {
+			t.Fatal("id is not 1")
+		}
+	}
+
+	res := make([]Item, 0, 12)
+
+	for i := 0; i < 5; i++ {
+		item := bh.ExtractMin()
+		res = append(res, item)
+	}
+
+	require.Equal(t, expected, res)
 }
