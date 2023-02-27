@@ -11,7 +11,7 @@ require (
 	github.com/roadrunner-server/goridge/v3 v3.6.2
 	github.com/roadrunner-server/tcplisten v1.3.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	go.uber.org/multierr v1.9.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
