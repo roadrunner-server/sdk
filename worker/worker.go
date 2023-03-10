@@ -3,6 +3,7 @@ package worker
 import (
 	"bytes"
 	"context"
+	stderr "errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,7 +19,6 @@ import (
 	"github.com/roadrunner-server/sdk/v4/fsm"
 	"github.com/roadrunner-server/sdk/v4/internal"
 	"github.com/roadrunner-server/sdk/v4/payload"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -195,7 +195,7 @@ func (w *Process) Wait() error {
 	// If state is different, and err is not nil, append it to the errors
 	if err != nil {
 		w.State().Transition(fsm.StateErrored)
-		err = multierr.Combine(err, errors.E(op, err))
+		err = stderr.Join(err, errors.E(op, err))
 	}
 
 	// closeRelay
@@ -205,7 +205,7 @@ func (w *Process) Wait() error {
 	err2 := w.closeRelay()
 	if err2 != nil {
 		w.State().Transition(fsm.StateErrored)
-		return multierr.Append(err, errors.E(op, err2))
+		return stderr.Join(err, errors.E(op, err2))
 	}
 
 	if w.cmd.ProcessState.Success() {
@@ -313,15 +313,14 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 	// exec TTL reached
 	case <-ctx.Done():
 		errK := w.Kill()
-		err := multierr.Combine(errK)
+		err := stderr.Join(errK)
 		// we should wait for the exit from the worker
 		// 'c' channel here should return an error or nil
 		// because the goroutine holds the payload pointer (from the sync.Pool)
 		<-c
 		if err != nil {
 			// append timeout error
-			err = multierr.Append(err, errors.E(op, errors.ExecTTL))
-			return nil, multierr.Append(err, ctx.Err())
+			return nil, stderr.Join(err, ctx.Err(), errors.E(op, errors.ExecTTL))
 		}
 		return nil, errors.E(op, errors.ExecTTL, ctx.Err())
 	case res := <-c:
