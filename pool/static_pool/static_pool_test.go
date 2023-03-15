@@ -40,10 +40,13 @@ func Test_NewPool(t *testing.T) {
 		log,
 	)
 	assert.NoError(t, err)
-
-	defer p.Destroy(ctx)
-
 	assert.NotNil(t, p)
+
+	resp, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	assert.Equal(t, []byte("hello"), resp.Body)
+	assert.NoError(t, err)
+
+	p.Destroy(ctx)
 }
 
 func Test_StaticPool_NilFactory(t *testing.T) {
