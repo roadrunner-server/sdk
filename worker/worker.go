@@ -448,6 +448,7 @@ func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
 	if err != nil {
 		return nil, errors.E(op, errors.Network, err)
 	}
+
 	if frameR == nil {
 		return nil, errors.E(op, errors.Network, errors.Str("nil frame received"))
 	}
