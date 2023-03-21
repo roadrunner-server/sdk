@@ -38,23 +38,6 @@ func SendControl(rl relay.Relay, payload any) error {
 	fr.WriteVersion(fr.Header(), frame.Version1)
 	fr.WriteFlags(fr.Header(), frame.CONTROL, frame.CodecJSON)
 
-	if data, ok := payload.([]byte); ok {
-		// check if payload no more that 4Gb
-		if uint32(len(data)) > ^uint32(0) {
-			return errors.Str("payload is more that 4gb")
-		}
-
-		fr.WritePayloadLen(fr.Header(), uint32(len(data)))
-		fr.WritePayload(data)
-		fr.WriteCRC(fr.Header())
-
-		err := rl.Send(fr)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return errors.Errorf("invalid payload: %s", err)
