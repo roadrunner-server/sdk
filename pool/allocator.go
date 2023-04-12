@@ -23,7 +23,7 @@ func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factor
 		if err != nil {
 			// context deadline
 			if errors.Is(errors.TimeOut, err) {
-				return nil, errors.Str("failed to spawn a worker, possible reasons: https://roadrunner.dev/docs/known-issues-allocate-timeout/2.x/en")
+				return nil, errors.Str("failed to spawn a worker, possible reasons: https://roadrunner.dev/docs/known-issues-allocate-timeout/2023.x/en")
 			}
 			return nil, err
 		}
