@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.3.0
-	github.com/prometheus/client_golang v1.15.0
+	github.com/prometheus/client_golang v1.15.1
 	github.com/roadrunner-server/errors v1.2.0
 	github.com/roadrunner-server/goridge/v3 v3.6.2
 	github.com/roadrunner-server/tcplisten v1.3.0
