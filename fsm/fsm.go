@@ -31,7 +31,7 @@ func (s *Fsm) Compare(state int64) bool {
 }
 
 /*
-Transition moves endure from one state to another
+Transition moves worker from one state to another
 */
 func (s *Fsm) Transition(to int64) {
 	err := s.recognizer(to)
