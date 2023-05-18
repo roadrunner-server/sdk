@@ -13,7 +13,6 @@ import (
 	"github.com/roadrunner-server/sdk/v4/pool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 var cfgSupervised = &pool.Config{
@@ -31,13 +30,12 @@ var cfgSupervised = &pool.Config{
 
 func Test_SupervisedPool_Exec(t *testing.T) {
 	ctx := context.Background()
-	logger, _ := zap.NewDevelopment()
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/memleak.php", "pipes") },
-		pipe.NewPipeFactory(logger),
+		pipe.NewPipeFactory(log()),
 		cfgSupervised,
-		logger,
+		log(),
 	)
 
 	require.NoError(t, err)
@@ -69,7 +67,7 @@ func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		&pool.Config{
 			AllocateTimeout: time.Second * 10,
 			DestroyTimeout:  time.Second * 10,
@@ -81,7 +79,7 @@ func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 				MaxWorkerMemory: 100,
 			},
 		},
-		log,
+		log(),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -99,9 +97,9 @@ func Test_SupervisedPool_NilFactory(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		nil,
-		log,
+		log(),
 	)
 	assert.Error(t, err)
 	assert.Nil(t, p)
@@ -114,7 +112,7 @@ func Test_SupervisedPool_NilConfig(t *testing.T) {
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		nil,
 		cfgSupervised,
-		log,
+		log(),
 	)
 	assert.Error(t, err)
 	assert.Nil(t, p)
@@ -126,9 +124,9 @@ func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgSupervised,
-		log,
+		log(),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -154,9 +152,9 @@ func Test_SupervisedPoolReset(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgSupervised,
-		log,
+		log(),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
@@ -184,7 +182,7 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/supervised.php") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		&pool.Config{
 			Debug:           true,
 			NumWorkers:      uint64(1),
@@ -198,7 +196,7 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 				MaxWorkerMemory: 100,
 			},
 		},
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -235,9 +233,9 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -271,9 +269,9 @@ func TestSupervisedPool_TTL_WorkerRestarted(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep-ttl.php") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -330,9 +328,9 @@ func TestSupervisedPool_Idle(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/idle.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -380,9 +378,9 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/exec_ttl.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -430,9 +428,9 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/exec_ttl.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -456,6 +454,47 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 	assert.Equal(t, pid, p.Workers()[0].Pid())
 }
 
+func TestSupervisedPool_ShouldRespond(t *testing.T) {
+	var cfgExecTTL = &pool.Config{
+		NumWorkers:      uint64(1),
+		AllocateTimeout: time.Minute,
+		DestroyTimeout:  time.Minute,
+		Supervisor: &pool.SupervisorConfig{
+			ExecTTL:         90 * time.Second,
+			MaxWorkerMemory: 100,
+		},
+	}
+
+	// constructed
+	// max memory
+	// constructed
+	ctx := context.Background()
+	p, err := NewPool(
+		ctx,
+		func(cmd string) *exec.Cmd {
+			return exec.Command("php", "../../tests/should-not-be-killed.php", "pipes")
+		},
+		pipe.NewPipeFactory(log()),
+		cfgExecTTL,
+		log(),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	resp, err := p.Exec(ctx, &payload.Payload{
+		Context: []byte(""),
+		Body:    []byte("foo"),
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("alive"), resp.Body)
+	assert.Empty(t, resp.Context)
+
+	time.Sleep(time.Second)
+	p.Destroy(context.Background())
+}
+
 func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 	var cfgExecTTL = &pool.Config{
 		NumWorkers:      uint64(1),
@@ -477,9 +516,9 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/memleak.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -503,9 +542,9 @@ func Test_SupervisedPool_FastCancel(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgSupervised,
-		log,
+		log(),
 	)
 	assert.NoError(t, err)
 	defer p.Destroy(ctx)
@@ -536,9 +575,9 @@ func Test_SupervisedPool_AllocateFailedOK(t *testing.T) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/allocate-failed.php") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		cfgExecTTL,
-		log,
+		log(),
 	)
 
 	assert.NoError(t, err)
@@ -578,7 +617,7 @@ func Test_SupervisedPool_NoFreeWorkers(t *testing.T) {
 		ctx,
 		// sleep for the 3 seconds
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/sleep.php", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		&pool.Config{
 			Debug:           false,
 			NumWorkers:      1,
@@ -586,7 +625,7 @@ func Test_SupervisedPool_NoFreeWorkers(t *testing.T) {
 			DestroyTimeout:  time.Second,
 			Supervisor:      &pool.SupervisorConfig{},
 		},
-		log,
+		log(),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, p)

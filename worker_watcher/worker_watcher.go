@@ -190,7 +190,9 @@ func (ww *WorkerWatcher) Release(w *worker.Process) {
 		fsm.StateInactive,
 		fsm.StateDestroyed,
 		fsm.StateErrored,
+		fsm.StateWorking,
 		fsm.StateInvalid,
+		fsm.StateIdleTTLReached,
 		fsm.StateMaxJobsReached:
 
 		err := w.Stop()
