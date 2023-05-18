@@ -31,4 +31,7 @@ const (
 
 	// StateErrored - error StateImpl (can't be used).
 	StateErrored
+
+	// StateIdleTTLReached - worker idle TTL was reached state
+	StateIdleTTLReached
 )

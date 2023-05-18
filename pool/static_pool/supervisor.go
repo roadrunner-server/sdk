@@ -60,11 +60,13 @@ func (sp *Pool) control() {
 			fsm.StateMaxJobsReached,
 			fsm.StateKilling:
 
-			// stop the bad worker
+			// do no touch the bad worker until it pushed back to the stack
+			continue
+		case fsm.StateIdleTTLReached:
+			// we can stop workers which reached the idlettl state
 			if workers[i] != nil {
 				_ = workers[i].Stop()
 			}
-			continue
 		}
 
 		s, err := process.WorkerProcessState(workers[i])
@@ -146,7 +148,7 @@ func (sp *Pool) control() {
 																															-----> Worker Stopped here
 				*/
 
-				workers[i].State().Transition(fsm.StateInvalid)
+				workers[i].State().Transition(fsm.StateIdleTTLReached)
 				sp.log.Debug("idle_ttl", zap.String("reason", "idle ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			}
 		}

@@ -17,9 +17,9 @@ func FuzzStaticPoolEcho(f *testing.F) {
 	p, err := NewPool(
 		ctx,
 		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
-		pipe.NewPipeFactory(log),
+		pipe.NewPipeFactory(log()),
 		testCfg,
-		log,
+		log(),
 	)
 	assert.NoError(f, err)
 	assert.NotNil(f, p)
