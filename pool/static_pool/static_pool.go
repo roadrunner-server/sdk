@@ -203,8 +203,12 @@ func (sp *Pool) QueueSize() uint64 {
 // Destroy all underlying stack (but let them complete the task).
 func (sp *Pool) Destroy(ctx context.Context) {
 	sp.log.Info("destroy signal received", zap.Duration("timeout", sp.cfg.DestroyTimeout))
-	ctx, cancel := context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
-	defer cancel()
+	var cancel context.CancelFunc
+	_, ok := ctx.Deadline()
+	if !ok {
+		ctx, cancel = context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
+		defer cancel()
+	}
 	sp.ww.Destroy(ctx)
 	atomic.StoreUint64(&sp.queue, 0)
 }
@@ -233,7 +237,13 @@ func (sp *Pool) stopWorker(w *worker.Process) {
 	w.State().Transition(fsm.StateInvalid)
 	err := w.Stop()
 	if err != nil {
-		sp.log.Warn("user requested worker to be stopped", zap.String("reason", "user event"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		sp.log.Warn(
+			"user requested worker to be stopped",
+			zap.String("reason", "user event"),
+			zap.Int64("pid", w.Pid()),
+			zap.String("internal_event_name", events.EventWorkerError.String()),
+			zap.Error(err),
+		)
 	}
 }
 
@@ -243,7 +253,12 @@ func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Pr
 	if err != nil {
 		// if the error is of kind NoFreeWorkers, it means, that we can't get worker from the stack during the allocate timeout
 		if errors.Is(errors.NoFreeWorkers, err) {
-			sp.log.Error("no free workers in the pool, wait timeout exceed", zap.String("reason", "no free workers"), zap.String("internal_event_name", events.EventNoFreeWorkers.String()), zap.Error(err))
+			sp.log.Error(
+				"no free workers in the pool, wait timeout exceed",
+				zap.String("reason", "no free workers"),
+				zap.String("internal_event_name", events.EventNoFreeWorkers.String()),
+				zap.Error(err),
+			)
 			return nil, errors.E(op, err)
 		}
 		// else if err not nil - return error
@@ -273,7 +288,13 @@ func (sp *Pool) execDebug(p *payload.Payload) (*payload.Payload, error) {
 	// destroy the worker
 	err = sw.Stop()
 	if err != nil {
-		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		sp.log.Debug(
+			"debug mode: worker stopped",
+			zap.String("reason", "worker error"),
+			zap.Int64("pid", sw.Pid()),
+			zap.String("internal_event_name", events.EventWorkerError.String()),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 
@@ -300,7 +321,13 @@ func (sp *Pool) execDebugWithTTL(ctx context.Context, p *payload.Payload) (*payl
 
 	err = sw.Stop()
 	if err != nil {
-		sp.log.Debug("debug mode: worker stopped", zap.String("reason", "worker error"), zap.Int64("pid", sw.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+		sp.log.Debug(
+			"debug mode: worker stopped",
+			zap.String("reason", "worker error"),
+			zap.Int64("pid", sw.Pid()),
+			zap.String("internal_event_name", events.EventWorkerError.String()),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 

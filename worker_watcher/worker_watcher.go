@@ -333,7 +333,7 @@ func (ww *WorkerWatcher) Destroy(ctx context.Context) {
 			return
 		case <-ctx.Done():
 			// drain channel
-			_, _ = ww.container.Pop(ctx)
+			ww.container.Drain()
 			// kill workers
 			ww.Lock()
 			wg := &sync.WaitGroup{}
