@@ -166,6 +166,7 @@ func (bh *BinHeap[T]) Insert(item T) {
 
 func (bh *BinHeap[T]) ExtractMin() T {
 	bh.cond.L.Lock()
+	defer bh.cond.L.Unlock()
 
 	// if len == 0, wait for the signal
 	for bh.Len() == 0 {
@@ -181,6 +182,5 @@ func (bh *BinHeap[T]) ExtractMin() T {
 	// reduce len
 	atomic.AddUint64(&bh.len, ^uint64(0))
 
-	bh.cond.L.Unlock()
 	return item
 }
