@@ -13,8 +13,8 @@ import (
 type Item interface {
 	// Priority returns the Item's priority to sort
 	Priority() int64
-	// PipelineID represents the pipeline ID (name)
-	PipelineID() string
+	// GroupID represents the Item's group, used to delete all Items with the same GroupID
+	GroupID() string
 }
 
 type BinHeap[T Item] struct {
@@ -80,14 +80,14 @@ func (bh *BinHeap[T]) fixDown(curr, end int) {
 }
 
 // Remove removes all elements with the provided ID and returns the slice with them
-func (bh *BinHeap[T]) Remove(pipeID string) []T {
+func (bh *BinHeap[T]) Remove(groupID string) []T {
 	bh.cond.L.Lock()
 	defer bh.cond.L.Unlock()
 
 	out := make([]T, 0, 10)
 
 	for i := 0; i < len(bh.items); i++ {
-		if bh.items[i].PipelineID() == pipeID {
+		if bh.items[i].GroupID() == groupID {
 			out = append(out, bh.items[i])
 			bh.st.add(i)
 		}
