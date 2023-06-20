@@ -21,25 +21,18 @@ import (
 type Pool struct {
 	// pool configuration
 	cfg *pool.Config
-
 	// logger
 	log *zap.Logger
-
 	// worker command creator
 	cmd pool.Command
-
 	// creates and connects to stack
 	factory pool.Factory
-
 	// manages worker states and TTLs
 	ww *workerWatcher.WorkerWatcher
-
 	// allocate new worker
 	allocator pool.Allocator
-
 	// exec queue size
 	queue uint64
-
 	// used in the supervised mode
 	supervisedExec bool
 	stopCh         chan struct{}

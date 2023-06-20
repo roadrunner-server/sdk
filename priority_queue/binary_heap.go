@@ -13,8 +13,8 @@ import (
 type Item interface {
 	// Priority returns the Item's priority to sort
 	Priority() int64
-	// ID of the item
-	ID() string
+	// PipelineID represents the pipeline ID (name)
+	PipelineID() string
 }
 
 type BinHeap[T Item] struct {
@@ -80,27 +80,18 @@ func (bh *BinHeap[T]) fixDown(curr, end int) {
 }
 
 // Remove removes all elements with the provided ID and returns the slice with them
-func (bh *BinHeap[T]) Remove(id string) []T {
+func (bh *BinHeap[T]) Remove(pipeID string) []T {
 	bh.cond.L.Lock()
 	defer bh.cond.L.Unlock()
 
 	out := make([]T, 0, 10)
 
 	for i := 0; i < len(bh.items); i++ {
-		if bh.items[i].ID() == id {
+		if bh.items[i].PipelineID() == pipeID {
 			out = append(out, bh.items[i])
 			bh.st.add(i)
 		}
 	}
-
-	/*
-		for i:=0; i<len(ids); i++ {
-		    interval := ids[i]
-		    interval[0] - beginning of the interval
-		    interval[1] - end of the interval
-		    bh.items = append(bh.items[:interval[0]], bh.items[interval[1]+1:]...)
-		}
-	*/
 
 	ids := bh.st.indices()
 	adjusment := 0
