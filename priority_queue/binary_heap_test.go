@@ -33,7 +33,7 @@ func (t Test) Context() ([]byte, error) {
 	return nil, nil
 }
 
-func (t Test) ID() string {
+func (t Test) GroupID() string {
 	return t.id
 }
 
@@ -334,7 +334,7 @@ func TestBinHeap_Remove(t *testing.T) {
 	}
 
 	for i := 0; i < len(out); i++ {
-		if out[i].ID() != "1" {
+		if out[i].GroupID() != "1" {
 			t.Fatal("id is not 1")
 		}
 	}
