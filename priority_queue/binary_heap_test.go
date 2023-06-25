@@ -14,27 +14,25 @@ import (
 )
 
 type Test struct {
-	priority int64
 	id       string
+	groupID  string
+	priority int64
 }
 
-func NewTest(priority int64, id string) Test {
+func NewTest(priority int64, groupID string, id string) Test {
 	return Test{
 		priority: priority,
+		groupID:  groupID,
 		id:       id,
 	}
 }
 
-func (t Test) Body() []byte {
-	return nil
-}
-
-func (t Test) Context() ([]byte, error) {
-	return nil, nil
+func (t Test) ID() string {
+	return t.id
 }
 
 func (t Test) GroupID() string {
-	return t.id
+	return t.groupID
 }
 
 func (t Test) Priority() int64 {
@@ -43,17 +41,17 @@ func (t Test) Priority() int64 {
 
 func TestBinHeap_Init(t *testing.T) {
 	a := []Item{
-		NewTest(2, uuid.NewString()),
-		NewTest(23, uuid.NewString()),
-		NewTest(33, uuid.NewString()),
-		NewTest(44, uuid.NewString()),
-		NewTest(1, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(4, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(99, uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(23, uuid.NewString(), uuid.NewString()),
+		NewTest(33, uuid.NewString(), uuid.NewString()),
+		NewTest(44, uuid.NewString(), uuid.NewString()),
+		NewTest(1, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(4, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(99, uuid.NewString(), uuid.NewString()),
 	}
 
 	bh := NewBinHeap[Item](12)
@@ -89,17 +87,17 @@ func TestBinHeap_Init(t *testing.T) {
 
 func TestBinHeap_MaxLen(t *testing.T) {
 	a := []Item{
-		NewTest(2, uuid.NewString()),
-		NewTest(23, uuid.NewString()),
-		NewTest(33, uuid.NewString()),
-		NewTest(44, uuid.NewString()),
-		NewTest(1, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(2, uuid.NewString()),
-		NewTest(4, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(99, uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(23, uuid.NewString(), uuid.NewString()),
+		NewTest(33, uuid.NewString(), uuid.NewString()),
+		NewTest(44, uuid.NewString(), uuid.NewString()),
+		NewTest(1, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(2, uuid.NewString(), uuid.NewString()),
+		NewTest(4, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(99, uuid.NewString(), uuid.NewString()),
 	}
 
 	bh := NewBinHeap[Item](1)
@@ -175,7 +173,7 @@ func TestNewPriorityQueue(t *testing.T) {
 			case <-stopCh:
 				return
 			default:
-				pq.Insert(NewTest(rand.Int63(), uuid.NewString())) //nolint:gosec
+				pq.Insert(NewTest(rand.Int63(), uuid.NewString(), uuid.NewString())) //nolint:gosec
 				atomic.AddUint64(&insertsPerSec, 1)
 			}
 		}
@@ -190,17 +188,17 @@ func TestNewPriorityQueue(t *testing.T) {
 
 func TestNewItemWithTimeout(t *testing.T) {
 	a := []Item{
-		NewTest(5, uuid.NewString()),
-		NewTest(23, uuid.NewString()),
-		NewTest(33, uuid.NewString()),
-		NewTest(44, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(7, uuid.NewString()),
-		NewTest(8, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(99, uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(23, uuid.NewString(), uuid.NewString()),
+		NewTest(33, uuid.NewString(), uuid.NewString()),
+		NewTest(44, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(7, uuid.NewString(), uuid.NewString()),
+		NewTest(8, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(99, uuid.NewString(), uuid.NewString()),
 	}
 
 	/*
@@ -221,17 +219,17 @@ func TestNewItemWithTimeout(t *testing.T) {
 
 func TestItemPeek(t *testing.T) {
 	a := []Item{
-		NewTest(5, uuid.NewString()),
-		NewTest(23, uuid.NewString()),
-		NewTest(33, uuid.NewString()),
-		NewTest(44, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(7, uuid.NewString()),
-		NewTest(8, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(99, uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(23, uuid.NewString(), uuid.NewString()),
+		NewTest(33, uuid.NewString(), uuid.NewString()),
+		NewTest(44, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(7, uuid.NewString(), uuid.NewString()),
+		NewTest(8, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(99, uuid.NewString(), uuid.NewString()),
 	}
 
 	/*
@@ -255,17 +253,17 @@ func TestItemPeek(t *testing.T) {
 
 func TestItemPeekConcurrent(t *testing.T) {
 	a := []Item{
-		NewTest(5, uuid.NewString()),
-		NewTest(23, uuid.NewString()),
-		NewTest(33, uuid.NewString()),
-		NewTest(44, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(5, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(7, uuid.NewString()),
-		NewTest(8, uuid.NewString()),
-		NewTest(6, uuid.NewString()),
-		NewTest(99, uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(23, uuid.NewString(), uuid.NewString()),
+		NewTest(33, uuid.NewString(), uuid.NewString()),
+		NewTest(44, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(5, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(7, uuid.NewString(), uuid.NewString()),
+		NewTest(8, uuid.NewString(), uuid.NewString()),
+		NewTest(6, uuid.NewString(), uuid.NewString()),
+		NewTest(99, uuid.NewString(), uuid.NewString()),
 	}
 
 	/*
@@ -301,17 +299,17 @@ func TestItemPeekConcurrent(t *testing.T) {
 
 func TestBinHeap_Remove(t *testing.T) {
 	a := []Item{
-		NewTest(2, "1"),
-		NewTest(5, "1"),
-		NewTest(99, "1"),
-		NewTest(4, "6"),
-		NewTest(6, "7"),
-		NewTest(23, "2"),
-		NewTest(2, "1"),
-		NewTest(2, "1"),
-		NewTest(33, "3"),
-		NewTest(44, "4"),
-		NewTest(2, "1"),
+		NewTest(2, "1", "101"),
+		NewTest(5, "1", "102"),
+		NewTest(99, "1", "103"),
+		NewTest(4, "6", "104"),
+		NewTest(6, "7", "105"),
+		NewTest(23, "2", "106"),
+		NewTest(2, "1", "107"),
+		NewTest(2, "1", "108"),
+		NewTest(33, "3", "109"),
+		NewTest(44, "4", "110"),
+		NewTest(2, "1", "111"),
 	}
 
 	bh := NewBinHeap[Item](12)
@@ -321,11 +319,11 @@ func TestBinHeap_Remove(t *testing.T) {
 	}
 
 	expected := []Item{
-		NewTest(4, "6"),
-		NewTest(6, "7"),
-		NewTest(23, "2"),
-		NewTest(33, "3"),
-		NewTest(44, "4"),
+		NewTest(4, "6", "104"),
+		NewTest(6, "7", "105"),
+		NewTest(23, "2", "106"),
+		NewTest(33, "3", "109"),
+		NewTest(44, "4", "110"),
 	}
 
 	out := bh.Remove("1")
@@ -347,4 +345,47 @@ func TestBinHeap_Remove(t *testing.T) {
 	}
 
 	require.Equal(t, expected, res)
+}
+
+func TestExists(t *testing.T) {
+	const id = "11111111111"
+	a := []Item{
+		NewTest(2, "1", id),
+		NewTest(5, "1", uuid.NewString()),
+		NewTest(99, "1", uuid.NewString()),
+		NewTest(4, "6", uuid.NewString()),
+		NewTest(6, "7", uuid.NewString()),
+		NewTest(23, "2", uuid.NewString()),
+		NewTest(2, "1", uuid.NewString()),
+		NewTest(2, "1", uuid.NewString()),
+		NewTest(33, "3", uuid.NewString()),
+		NewTest(44, "4", uuid.NewString()),
+		NewTest(2, "1", uuid.NewString()),
+	}
+
+	bh := NewBinHeap[Item](12)
+
+	for i := 0; i < len(a); i++ {
+		bh.Insert(a[i])
+	}
+
+	assert.False(t, bh.Exists("1"))
+	assert.True(t, bh.Exists(id))
+
+	_ = bh.Remove("1")
+
+	assert.False(t, bh.Exists(id))
+}
+
+func BenchmarkGeneral(b *testing.B) {
+	bh := NewBinHeap[Item](100)
+	id := uuid.NewString()
+	id2 := uuid.NewString()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bh.Insert(NewTest(2, id, id2))
+		bh.Remove(id)
+	}
 }

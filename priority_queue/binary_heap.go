@@ -11,6 +11,8 @@ import (
 
 // Item represents binary heap item
 type Item interface {
+	// Unique ID of the item
+	ID() string
 	// Priority returns the Item's priority to sort
 	Priority() int64
 	// GroupID represents the Item's group, used to delete all Items with the same GroupID
@@ -19,7 +21,9 @@ type Item interface {
 
 type BinHeap[T Item] struct {
 	items []T
-	st    *stack
+	// exists used as a shadow structure to check if the item exists in the BinHeap
+	exists map[string]struct{}
+	st     *stack
 	// find a way to use pointer to the raw data
 	len    uint64
 	maxLen uint64
@@ -29,6 +33,7 @@ type BinHeap[T Item] struct {
 func NewBinHeap[T Item](maxLen uint64) *BinHeap[T] {
 	return &BinHeap[T]{
 		items:  make([]T, 0, 1000),
+		exists: make(map[string]struct{}, 1000),
 		st:     newStack(),
 		len:    0,
 		maxLen: maxLen,
@@ -79,6 +84,17 @@ func (bh *BinHeap[T]) fixDown(curr, end int) {
 	}
 }
 
+func (bh *BinHeap[T]) Exists(id string) bool {
+	bh.cond.L.Lock()
+	defer bh.cond.L.Unlock()
+
+	if _, ok := bh.exists[id]; ok {
+		return true
+	}
+
+	return false
+}
+
 // Remove removes all elements with the provided ID and returns the slice with them
 func (bh *BinHeap[T]) Remove(groupID string) []T {
 	bh.cond.L.Lock()
@@ -88,6 +104,8 @@ func (bh *BinHeap[T]) Remove(groupID string) []T {
 
 	for i := 0; i < len(bh.items); i++ {
 		if bh.items[i].GroupID() == groupID {
+			// delete element
+			delete(bh.exists, bh.items[i].ID())
 			out = append(out, bh.items[i])
 			bh.st.add(i)
 		}
@@ -149,6 +167,10 @@ func (bh *BinHeap[T]) Insert(item T) {
 
 	// fix binary heap up
 	bh.fixUp()
+
+	// add item
+	bh.exists[item.ID()] = struct{}{}
+
 	bh.cond.L.Unlock()
 
 	// signal the goroutine on wait
@@ -171,6 +193,9 @@ func (bh *BinHeap[T]) ExtractMin() T {
 
 	// reduce len
 	atomic.AddUint64(&bh.len, ^uint64(0))
+
+	// remove item
+	delete(bh.exists, item.ID())
 
 	bh.cond.L.Unlock()
 	return item
