@@ -35,9 +35,14 @@ func Test_NotStarted_Exec(t *testing.T) {
 	w, err := InitBaseWorker(cmd)
 	require.NoError(t, err)
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	pldCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+
+	err = w.Exec(&payload.Payload{
+		Body: []byte("hello"),
+	}, pldCh, stopCh)
+
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	assert.Contains(t, err.Error(), "Process is not ready (inactive)")
 }

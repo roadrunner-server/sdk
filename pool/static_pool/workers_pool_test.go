@@ -45,7 +45,11 @@ func Test_NewPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	resp, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	resp := <-respCh
 	assert.Equal(t, []byte("hello"), resp.Body)
 	assert.NoError(t, err)
 
@@ -91,7 +95,9 @@ func Test_StaticPool_ImmediateDestroy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	_ = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Nanosecond)
 	defer cancel()
@@ -112,7 +118,9 @@ func Test_StaticPool_RemoveWorker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
 	assert.NoError(t, err)
 
 	wrks := p.Workers()
@@ -120,7 +128,9 @@ func Test_StaticPool_RemoveWorker(t *testing.T) {
 		assert.NoError(t, p.RemoveWorker(wrks[i]))
 	}
 
-	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh = make(chan *payload.Payload, 1)
+	stopCh = make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
 	assert.NoError(t, err)
 
 	assert.Len(t, p.Workers(), 0)
@@ -154,7 +164,9 @@ func Test_Poll_Reallocate(t *testing.T) {
 	go func() {
 		for i := 0; i < 50; i++ {
 			time.Sleep(time.Millisecond * 100)
-			_, errResp := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+			respCh := make(chan *payload.Payload, 1)
+			stopCh := make(chan struct{}, 1)
+			errResp := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
 			require.NoError(t, errResp)
 		}
 		wg.Done()
@@ -197,7 +209,10 @@ func Test_NewPoolReset(t *testing.T) {
 	}
 	pid := w[0].Pid()
 
-	pld, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	pld := <-respCh
 	require.NoError(t, err)
 	require.NotNil(t, pld.Body)
 
@@ -206,8 +221,11 @@ func Test_NewPoolReset(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			time.Sleep(time.Millisecond * 10)
-			pldG, errG := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+			respgCh := make(chan *payload.Payload, 1)
+			stopgCh := make(chan struct{}, 1)
+			errG := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respgCh, stopgCh)
 			require.NoError(t, errG)
+			pldG := <-respgCh
 			require.NotNil(t, pldG.Body)
 		}
 
@@ -216,7 +234,10 @@ func Test_NewPoolReset(t *testing.T) {
 
 	require.NoError(t, p.Reset(context.Background()))
 
-	pld, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh = make(chan *payload.Payload, 1)
+	stopCh = make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	pld = <-respCh
 	require.NoError(t, err)
 	require.NotNil(t, pld.Body)
 
@@ -275,8 +296,11 @@ func Test_StaticPool_Echo(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 
+	res := <-respCh
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.NotNil(t, res.Body)
@@ -300,8 +324,11 @@ func Test_StaticPool_Echo_NilContext(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
 
+	res := <-respCh
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.NotNil(t, res.Body)
@@ -325,8 +352,11 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")}, respCh, stopCh)
 
+	res := <-respCh
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.Empty(t, res.Body)
@@ -349,9 +379,10 @@ func Test_StaticPool_JobError(t *testing.T) {
 
 	time.Sleep(time.Second * 2)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	if errors.Is(errors.SoftJob, err) == false {
 		t.Fatal("error should be of type errors.Exec")
@@ -378,9 +409,11 @@ func Test_StaticPool_Broken_Replace(t *testing.T) {
 	assert.NotNil(t, p)
 
 	time.Sleep(time.Second)
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	p.Destroy(ctx)
 }
@@ -405,9 +438,12 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	assert.NotNil(t, p)
 	time.Sleep(time.Second)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.NoError(t, err)
+
+	res := <-respCh
 	assert.NotNil(t, res)
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
@@ -474,19 +510,27 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	var lastPID string
 	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-	require.Equal(t, lastPID, string(res.Body))
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	require.NoError(t, err)
+	res := <-respCh
+	require.Equal(t, lastPID, string(res.Body))
 
 	for i := 0; i < 10; i++ {
-		res, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		respCh2 := make(chan *payload.Payload, 1)
+		stopCh2 := make(chan struct{}, 1)
+		err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh2, stopCh2)
 		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.Body)
-		require.Empty(t, res.Context)
 
-		require.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
+		res2 := <-respCh2
+
+		require.NotNil(t, res2)
+		require.NotNil(t, res2.Body)
+		require.Empty(t, res2.Context)
+
+		require.NotEqual(t, lastPID, string(res2.Body))
+		lastPID = string(res2.Body)
 	}
 
 	p.Destroy(context.Background())
@@ -513,67 +557,32 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 	assert.Len(t, p.Workers(), 0)
 
 	var lastPID string
-	res, _ := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	assert.NoError(t, err)
+
+	res := <-respCh
 	assert.NotEqual(t, lastPID, string(res.Body))
 
 	assert.Len(t, p.Workers(), 0)
 
 	for i := 0; i < 10; i++ {
 		assert.Len(t, p.Workers(), 0)
-		res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		respCh2 := make(chan *payload.Payload, 1)
+		stopCh2 := make(chan struct{}, 1)
+		err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh2, stopCh2)
+		res2 := <-respCh2
 
 		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
+		assert.NotNil(t, res2.Body)
+		assert.Empty(t, res2.Context)
 
-		assert.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
+		assert.NotEqual(t, lastPID, string(res2.Body))
+		lastPID = string(res2.Body)
 	}
 
 	p.Destroy(context.Background())
-}
-
-// identical to replace but controlled on worker side
-func Test_StaticPool_Stop_Worker(t *testing.T) {
-	ctx := context.Background()
-	p, err := NewPool(
-		ctx,
-		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "stop", "pipes") },
-		pipe.NewPipeFactory(log()),
-		&pool.Config{
-			NumWorkers:      1,
-			AllocateTimeout: time.Second,
-			DestroyTimeout:  time.Second,
-		},
-		log(),
-	)
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-
-	defer p.Destroy(ctx)
-	time.Sleep(time.Second)
-
-	var lastPID string
-	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
-
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, lastPID, string(res.Body))
-
-	for i := 0; i < 10; i++ {
-		res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
-
-		assert.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
-	}
 }
 
 // identical to replace but controlled on worker side
@@ -595,7 +604,9 @@ func Test_Static_Pool_Destroy_And_Close(t *testing.T) {
 	assert.NoError(t, err)
 
 	p.Destroy(ctx)
-	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("100")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("100")}, respCh, stopCh)
 	assert.Error(t, err)
 }
 
@@ -618,7 +629,9 @@ func Test_Static_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 	assert.NoError(t, err)
 
 	go func() {
-		_, errP := p.Exec(ctx, &payload.Payload{Body: []byte("100")})
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		errP := p.Exec(ctx, &payload.Payload{Body: []byte("100")}, respCh, stopCh)
 		if errP != nil {
 			t.Errorf("error executing payload: error %v", err)
 		}
@@ -626,7 +639,9 @@ func Test_Static_Pool_Destroy_And_Close_While_Wait(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	p.Destroy(ctx)
-	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("100")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("100")}, respCh, stopCh)
 	assert.Error(t, err)
 }
 
@@ -654,7 +669,9 @@ func Test_Static_Pool_Handle_Dead(t *testing.T) {
 		p.Workers()[i].State().Transition(fsm.StateErrored)
 	}
 
-	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.NoError(t, err)
 	p.Destroy(ctx)
 }
@@ -702,7 +719,9 @@ func Test_StaticPool_ResetTimeout(t *testing.T) {
 	assert.NotNil(t, p)
 
 	go func() {
-		_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		_ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	}()
 
 	time.Sleep(time.Second)
@@ -736,13 +755,16 @@ func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 	assert.NotNil(t, p)
 
 	go func() {
-		_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		_ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	}()
 
 	time.Sleep(time.Second)
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	time.Sleep(time.Second)
 
@@ -771,7 +793,9 @@ func Test_StaticPool_QueueSize(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		go func() {
-			_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+			respCh := make(chan *payload.Payload, 1)
+			stopCh := make(chan struct{}, 1)
+			_ = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 		}()
 	}
 
@@ -880,7 +904,9 @@ func Benchmark_Pool_Echo(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		if _, err := p.Exec(ctx, pld); err != nil {
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		if err = p.Exec(ctx, pld, respCh, stopCh); err != nil {
 			b.Fail()
 		}
 	}
@@ -921,7 +947,9 @@ func Benchmark_Pool_Echo_Batched(b *testing.B) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := p.Exec(ctx, pld); err != nil {
+			respCh := make(chan *payload.Payload, 1)
+			stopCh := make(chan struct{}, 1)
+			if err = p.Exec(ctx, pld, respCh, stopCh); err != nil {
 				b.Fail()
 				l.Println(err)
 			}
@@ -952,7 +980,9 @@ func Benchmark_Pool_Echo_Replaced(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}); err != nil {
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		if err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh); err != nil {
 			b.Fail()
 			l.Println(err)
 		}

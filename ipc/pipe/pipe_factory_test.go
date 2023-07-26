@@ -154,9 +154,13 @@ func Test_Pipe_Echo(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.NoError(t, err)
-	assert.NotNil(t, res)
+
+	res := <-respCh
+
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
 
@@ -182,9 +186,10 @@ func Test_Pipe_Broken(t *testing.T) {
 		require.Error(t, errW)
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	time.Sleep(time.Second)
 	err = w.Stop()
@@ -229,8 +234,10 @@ func Benchmark_Pipe_Worker_ExecEcho(b *testing.B) {
 		}
 	}()
 
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
 	for n := 0; n < b.N; n++ {
-		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if err := w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh); err != nil {
 			b.Fail()
 		}
 	}
@@ -252,7 +259,9 @@ func Benchmark_Pipe_Worker_ExecEchoWithoutContext(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+		if err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh); err != nil {
 			b.Fail()
 		}
 	}
@@ -278,10 +287,13 @@ func Test_Echo(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	assert.NoError(t, err)
 
-	assert.Nil(t, err)
-	assert.NotNil(t, res)
+	res := <-respCh
+
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
 
@@ -305,10 +317,10 @@ func Test_BadPayload(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{})
-
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err := w.Exec(&payload.Payload{}, respCh, stopCh)
 	assert.Error(t, err)
-	assert.Nil(t, res)
 
 	assert.Contains(t, err.Error(), "payload can not be empty")
 }
@@ -350,10 +362,12 @@ func Test_Echo_Slow(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err := w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	assert.NoError(t, err)
 
-	assert.Nil(t, err)
-	assert.NotNil(t, res)
+	res := <-respCh
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
 
@@ -369,9 +383,10 @@ func Test_Broken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
-	assert.NotNil(t, err)
-	assert.Nil(t, res)
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	assert.Error(t, err)
 
 	time.Sleep(time.Second * 3)
 	assert.Error(t, w.Stop())
@@ -394,9 +409,10 @@ func Test_Error(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err := w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	assert.NotNil(t, err)
-	assert.Nil(t, res)
 
 	if errors.Is(errors.SoftJob, err) == false {
 		t.Fatal("error should be of type errors.ErrSoftJob")
@@ -420,19 +436,25 @@ func Test_NumExecs(t *testing.T) {
 		}
 	}()
 
-	_, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh := make(chan *payload.Payload, 1)
+	stopCh := make(chan struct{}, 1)
+	err := w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}
 	assert.Equal(t, uint64(1), w.State().NumExecs())
 
-	_, err = w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh = make(chan *payload.Payload, 1)
+	stopCh = make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}
 	assert.Equal(t, uint64(2), w.State().NumExecs())
 
-	_, err = w.Exec(&payload.Payload{Body: []byte("hello")})
+	respCh = make(chan *payload.Payload, 1)
+	stopCh = make(chan struct{}, 1)
+	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}

@@ -29,9 +29,13 @@ func FuzzStaticPoolEcho(f *testing.F) {
 		if len(data) == 0 {
 			data = []byte("1")
 		}
-		res, err := p.Exec(ctx, &payload.Payload{Body: data})
 
+		respCh := make(chan *payload.Payload, 1)
+		stopCh := make(chan struct{}, 1)
+
+		err = p.Exec(ctx, &payload.Payload{Body: data}, respCh, stopCh)
 		assert.NoError(t, err)
+		res := <-respCh
 		assert.NotNil(t, res)
 		assert.NotNil(t, res.Body)
 		assert.Empty(t, res.Context)
