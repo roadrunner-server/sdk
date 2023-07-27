@@ -214,10 +214,12 @@ func (w *Process) Exec(p *payload.Payload, respCh chan *payload.Payload, stopCh 
 	const op = errors.Op("worker_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
+		close(respCh)
 		return errors.E(op, errors.Str("payload can not be empty"))
 	}
 
 	if !w.State().Compare(fsm.StateReady) {
+		close(respCh)
 		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
 	}
 
@@ -232,12 +234,14 @@ func (w *Process) Exec(p *payload.Payload, respCh chan *payload.Payload, stopCh 
 		if !errors.Is(errors.SoftJob, err) {
 			w.State().Transition(fsm.StateErrored)
 		}
+		close(respCh)
 		return errors.E(op, err)
 	}
 
 	// supervisor may set state of the worker during the work
 	// in this case we should not re-write the worker state
 	if !w.State().Compare(fsm.StateWorking) {
+		close(respCh)
 		return nil
 	}
 
@@ -251,11 +255,13 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload, respCh ch
 	const op = errors.Op("worker_exec_with_timeout")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
+		close(respCh)
 		return errors.E(op, errors.Str("payload can not be empty"))
 	}
 
 	// worker was killed before it started to work (supervisor)
 	if !w.State().Compare(fsm.StateReady) {
+		close(respCh)
 		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
 	}
 	// set last used time
@@ -265,6 +271,7 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload, respCh ch
 
 	go func() {
 		err := w.execPayload(p, respCh, stopCh, finishedCh)
+		w.State().RegisterExec()
 		if err != nil {
 			// just to be more verbose
 			if !errors.Is(errors.SoftJob, err) {
@@ -280,7 +287,6 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload, respCh ch
 		}
 
 		w.State().Transition(fsm.StateReady)
-		w.State().RegisterExec()
 	}()
 
 	select {
@@ -384,6 +390,7 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
 func (w *Process) execPayload(p *payload.Payload, respCh chan *payload.Payload, stopCh chan struct{}, finishedCh chan struct{}) error {
 	const op = errors.Op("sync_worker_exec_payload")
 	defer func() {
+		close(respCh)
 		finishedCh <- struct{}{}
 	}()
 
