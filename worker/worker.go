@@ -71,16 +71,14 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 				return frame.NewFrame()
 			},
 		},
-
 		bPool: sync.Pool{
 			New: func() any {
 				return new(bytes.Buffer)
 			},
 		},
-
 		chPool: sync.Pool{
 			New: func() any {
-				return make(chan wexec, 1)
+				return make(chan *wexec, 1)
 			},
 		},
 	}
@@ -216,41 +214,14 @@ func (w *Process) Wait() error {
 	return err
 }
 
-// Exec payload without TTL timeout.
-func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("worker_exec")
-
-	if len(p.Body) == 0 && len(p.Context) == 0 {
-		return nil, errors.E(op, errors.Str("payload can not be empty"))
+// StreamIter returns true if stream is available and payload
+func (w *Process) StreamIter() (*payload.Payload, bool, error) {
+	pld, err := w.receiveFrame()
+	if err != nil {
+		return nil, false, err
 	}
 
-	if !w.State().Compare(fsm.StateReady) {
-		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
-	}
-
-	// set last used time
-	w.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	w.State().Transition(fsm.StateWorking)
-
-	rsp, err := w.execPayload(p)
-	w.State().RegisterExec()
-	if err != nil && !errors.Is(errors.Stop, err) {
-		// just to be more verbose
-		if !errors.Is(errors.SoftJob, err) {
-			w.State().Transition(fsm.StateErrored)
-		}
-		return nil, errors.E(op, err)
-	}
-
-	// supervisor may set state of the worker during the work
-	// in this case we should not re-write the worker state
-	if !w.State().Compare(fsm.StateWorking) {
-		return rsp, nil
-	}
-
-	w.State().Transition(fsm.StateReady)
-
-	return rsp, nil
+	return pld, pld.IsStream, nil
 }
 
 type wexec struct {
@@ -259,12 +230,8 @@ type wexec struct {
 }
 
 // ExecWithTTL executes payload without TTL timeout.
-func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("worker_exec_with_timeout")
-
-	if len(p.Body) == 0 && len(p.Context) == 0 {
-		return nil, errors.E(op, errors.Str("payload can not be empty"))
-	}
 
 	c := w.getCh()
 	defer w.putCh(c)
@@ -278,22 +245,21 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 	w.State().Transition(fsm.StateWorking)
 
 	go func() {
-		rsp, err := w.execPayload(p)
+		rsp, err := w.execPayload(ctx, p)
+		w.State().RegisterExec()
 		if err != nil {
 			// just to be more verbose
 			if !errors.Is(errors.SoftJob, err) {
 				w.State().Transition(fsm.StateErrored)
-				w.State().RegisterExec()
 			}
-			c <- wexec{
+			c <- &wexec{
 				err: errors.E(op, err),
 			}
 			return
 		}
 
 		if !w.State().Compare(fsm.StateWorking) {
-			w.State().RegisterExec()
-			c <- wexec{
+			c <- &wexec{
 				payload: rsp,
 				err:     nil,
 			}
@@ -301,9 +267,8 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 		}
 
 		w.State().Transition(fsm.StateReady)
-		w.State().RegisterExec()
 
-		c <- wexec{
+		c <- &wexec{
 			payload: rsp,
 			err:     nil,
 		}
@@ -409,20 +374,56 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
 	return nil
 }
 
-func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
-	const op = errors.Op("sync_worker_exec_payload")
+func (w *Process) execPayload(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+	ch := w.getCh()
 
+	// we can save some time by firing receiveFrame method in a separate goroutine
+	go func() {
+		we := &wexec{}
+		pld, err := w.receiveFrame()
+		if err != nil {
+			we.err = err
+			ch <- we
+			return
+		}
+		we.payload = pld
+		ch <- we
+	}()
+
+	err := w.sendFrame(p)
+	if err != nil {
+		w.putCh(ch)
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case data := <-ch:
+		if data.err != nil {
+			er := data.err
+			w.putCh(ch)
+			return nil, er
+		}
+
+		res := data.payload
+		w.putCh(ch)
+		return res, nil
+	}
+}
+
+// sendFrame sends frame to the worker
+func (w *Process) sendFrame(p *payload.Payload) error {
+	const op = errors.Op("sync_worker_send_frame")
 	// get a frame
 	fr := w.getFrame()
-	defer w.putFrame(fr)
+	buf := w.get()
 
 	// can be 0 here
 	fr.WriteVersion(fr.Header(), frame.Version1)
 	fr.WriteFlags(fr.Header(), p.Codec)
 
 	// obtain a buffer
-	buf := w.get()
-
 	buf.Write(p.Context)
 	buf.Write(p.Body)
 
@@ -438,41 +439,62 @@ func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
 
 	err := w.Relay().Send(fr)
 	if err != nil {
-		return nil, errors.E(op, errors.Network, err)
+		w.putFrame(fr)
+		return errors.E(op, errors.Network, err)
 	}
+	w.putFrame(fr)
+	return nil
+}
+
+func (w *Process) receiveFrame() (*payload.Payload, error) {
+	const op = errors.Op("sync_worker_receive_frame")
 
 	frameR := w.getFrame()
-	defer w.putFrame(frameR)
 
-	err = w.Relay().Receive(frameR)
+	err := w.Relay().Receive(frameR)
 	if err != nil {
+		w.putFrame(frameR)
 		return nil, errors.E(op, errors.Network, err)
 	}
 
 	if frameR == nil {
+		w.putFrame(frameR)
 		return nil, errors.E(op, errors.Network, errors.Str("nil frame received"))
 	}
 
 	flags := frameR.ReadFlags()
 
 	if flags&frame.ERROR != byte(0) {
-		return nil, errors.E(op, errors.SoftJob, errors.Str(string(frameR.Payload())))
+		// we need to copy the payload because we will put the frame back to the pool
+		cp := make([]byte, len(frameR.Payload()))
+		copy(cp, frameR.Payload())
+
+		w.putFrame(frameR)
+		return nil, errors.E(op, errors.SoftJob, errors.Str(string(cp)))
 	}
 
 	options := frameR.ReadOptions(frameR.Header())
 	if len(options) != 1 {
+		w.putFrame(frameR)
 		return nil, errors.E(op, errors.Decode, errors.Str("options length should be equal 1 (body offset)"))
 	}
 
 	// bound check
 	if len(frameR.Payload()) < int(options[0]) {
-		return nil, errors.E(errors.Network, errors.Errorf("bad payload %s", frameR.Payload()))
+		// we need to copy the payload because we will put the frame back to the pool
+		cp := make([]byte, len(frameR.Payload()))
+		copy(cp, frameR.Payload())
+
+		w.putFrame(frameR)
+		return nil, errors.E(errors.Network, errors.Errorf("bad payload %s", cp))
 	}
 
+	isStream := frameR.IsStream(frameR.Header())
 	pld := &payload.Payload{
-		Codec:   flags,
-		Body:    make([]byte, len(frameR.Payload()[options[0]:])),
-		Context: make([]byte, len(frameR.Payload()[:options[0]])),
+		IsStream: isStream,
+		Codec:    flags,
+		Body:     make([]byte, len(frameR.Payload()[options[0]:])),
+		Context:  make([]byte, len(frameR.Payload()[:options[0]])),
 	}
 
 	// by copying we free frame's payload slice
@@ -481,6 +503,7 @@ func (w *Process) execPayload(p *payload.Payload) (*payload.Payload, error) {
 	copy(pld.Body, frameR.Payload()[options[0]:])
 	copy(pld.Context, frameR.Payload()[:options[0]])
 
+	w.putFrame(frameR)
 	return pld, nil
 }
 
@@ -512,16 +535,15 @@ func (w *Process) putFrame(f *frame.Frame) {
 	w.fPool.Put(f)
 }
 
-func (w *Process) getCh() chan wexec {
-	return w.chPool.Get().(chan wexec)
+func (w *Process) getCh() chan *wexec {
+	return w.chPool.Get().(chan *wexec)
 }
 
-func (w *Process) putCh(ch chan wexec) {
+func (w *Process) putCh(ch chan *wexec) {
 	// just check if the chan is not empty
 	select {
 	case <-ch:
-		w.chPool.Put(ch)
 	default:
-		w.chPool.Put(ch)
 	}
+	w.chPool.Put(ch)
 }

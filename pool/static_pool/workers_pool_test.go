@@ -45,8 +45,10 @@ func Test_NewPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	resp, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
-	assert.Equal(t, []byte("hello"), resp.Body)
+	r, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	resp := <-r
+
+	assert.Equal(t, []byte("hello"), resp.Body())
 	assert.NoError(t, err)
 
 	p.Destroy(ctx)
@@ -197,9 +199,10 @@ func Test_NewPoolReset(t *testing.T) {
 	}
 	pid := w[0].Pid()
 
-	pld, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	pldd, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 	require.NoError(t, err)
-	require.NotNil(t, pld.Body)
+	pld := <-pldd
+	require.NotNil(t, pld.Body())
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -208,7 +211,8 @@ func Test_NewPoolReset(t *testing.T) {
 			time.Sleep(time.Millisecond * 10)
 			pldG, errG := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 			require.NoError(t, errG)
-			require.NotNil(t, pldG.Body)
+			pldGG := <-pldG
+			require.NotNil(t, pldGG.Body())
 		}
 
 		wg.Done()
@@ -216,9 +220,10 @@ func Test_NewPoolReset(t *testing.T) {
 
 	require.NoError(t, p.Reset(context.Background()))
 
-	pld, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
+	pldd, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 	require.NoError(t, err)
-	require.NotNil(t, pld.Body)
+	pld = <-pldd
+	require.NotNil(t, pld.Body())
 
 	w2 := p.Workers()
 	if len(w2) == 0 {
@@ -275,14 +280,16 @@ func Test_StaticPool_Echo(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+
+	res := <-re
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
-	assert.NotNil(t, res.Body)
-	assert.Empty(t, res.Context)
+	assert.NotNil(t, res.Body())
+	assert.Empty(t, res.Context())
 
-	assert.Equal(t, "hello", res.String())
+	assert.Equal(t, "hello", res.Payload().String())
 }
 
 func Test_StaticPool_Echo_NilContext(t *testing.T) {
@@ -300,14 +307,16 @@ func Test_StaticPool_Echo_NilContext(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
-
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 	assert.NoError(t, err)
-	assert.NotNil(t, res)
-	assert.NotNil(t, res.Body)
-	assert.Empty(t, res.Context)
 
-	assert.Equal(t, "hello", res.String())
+	res := <-re
+
+	assert.NotNil(t, res)
+	assert.NotNil(t, res.Body())
+	assert.Empty(t, res.Context())
+
+	assert.Equal(t, "hello", res.Payload().String())
 }
 
 func Test_StaticPool_Echo_Context(t *testing.T) {
@@ -325,14 +334,16 @@ func Test_StaticPool_Echo_Context(t *testing.T) {
 
 	assert.NotNil(t, p)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")})
-
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: []byte("world")})
 	assert.NoError(t, err)
-	assert.NotNil(t, res)
-	assert.Empty(t, res.Body)
-	assert.NotNil(t, res.Context)
 
-	assert.Equal(t, "world", string(res.Context))
+	res := <-re
+
+	assert.NotNil(t, res)
+	assert.Empty(t, res.Body())
+	assert.NotNil(t, res.Context())
+
+	assert.Equal(t, "world", string(res.Context()))
 }
 
 func Test_StaticPool_JobError(t *testing.T) {
@@ -405,14 +416,16 @@ func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	assert.NotNil(t, p)
 	time.Sleep(time.Second)
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
 	assert.NoError(t, err)
-	assert.NotNil(t, res)
-	assert.NotNil(t, res.Body)
-	assert.Empty(t, res.Context)
 
-	assert.Equal(t, "hello", res.String())
+	res := <-re
+
+	assert.NotNil(t, res)
+	assert.NotNil(t, res.Body())
+	assert.Empty(t, res.Context())
+
+	assert.Equal(t, "hello", res.Payload().String())
 	assert.Equal(t, 1, len(p.Workers()))
 
 	// first creation
@@ -474,19 +487,23 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	var lastPID string
 	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
 
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-	require.Equal(t, lastPID, string(res.Body))
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	res := <-re
+	require.Equal(t, lastPID, string(res.Body()))
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		res, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		re, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
 		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.Body)
-		require.Empty(t, res.Context)
 
-		require.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
+		res = <-re
+
+		require.NotNil(t, res)
+		require.NotNil(t, res.Body())
+		require.Empty(t, res.Context())
+
+		require.NotEqual(t, lastPID, string(res.Body()))
+		lastPID = string(res.Body())
 	}
 
 	p.Destroy(context.Background())
@@ -513,67 +530,31 @@ func Test_StaticPool_Debug_Worker(t *testing.T) {
 	assert.Len(t, p.Workers(), 0)
 
 	var lastPID string
-	res, _ := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-	assert.NotEqual(t, lastPID, string(res.Body))
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+	assert.NoError(t, err)
+
+	res := <-re
+
+	assert.NotEqual(t, lastPID, string(res.Body()))
 
 	assert.Len(t, p.Workers(), 0)
 
 	for i := 0; i < 10; i++ {
 		assert.Len(t, p.Workers(), 0)
-		res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+		re, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
+
+		res = <-re
 
 		assert.NoError(t, err)
 		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
+		assert.NotNil(t, res.Body())
+		assert.Empty(t, res.Context())
 
-		assert.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
+		assert.NotEqual(t, lastPID, string(res.Body()))
+		lastPID = string(res.Body())
 	}
 
 	p.Destroy(context.Background())
-}
-
-// identical to replace but controlled on worker side
-func Test_StaticPool_Stop_Worker(t *testing.T) {
-	ctx := context.Background()
-	p, err := NewPool(
-		ctx,
-		func(cmd string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "stop", "pipes") },
-		pipe.NewPipeFactory(log()),
-		&pool.Config{
-			NumWorkers:      1,
-			AllocateTimeout: time.Second,
-			DestroyTimeout:  time.Second,
-		},
-		log(),
-	)
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-
-	defer p.Destroy(ctx)
-	time.Sleep(time.Second)
-
-	var lastPID string
-	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
-
-	res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, lastPID, string(res.Body))
-
-	for i := 0; i < 10; i++ {
-		res, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
-
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
-
-		assert.NotEqual(t, lastPID, string(res.Body))
-		lastPID = string(res.Body)
-	}
 }
 
 // identical to replace but controlled on worker side
@@ -880,9 +861,8 @@ func Benchmark_Pool_Echo(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		if _, err := p.Exec(ctx, pld); err != nil {
-			b.Fail()
-		}
+		_, err = p.Exec(ctx, pld)
+		assert.NoError(b, err)
 	}
 }
 

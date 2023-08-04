@@ -26,7 +26,7 @@ func Benchmark_WorkerPipeNoTTL(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+		res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 		assert.NoError(b, err)
 		assert.NotNil(b, res)
 	}
@@ -52,7 +52,7 @@ func Benchmark_WorkerPipeTTL(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		res, err := w.ExecWithTTL(ctx, &payload.Payload{Body: []byte("hello")})
+		res, err := w.Exec(ctx, &payload.Payload{Body: []byte("hello")})
 		assert.NoError(b, err)
 		assert.NotNil(b, res)
 	}

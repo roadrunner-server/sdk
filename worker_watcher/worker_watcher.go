@@ -7,16 +7,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/roadrunner-server/sdk/v4/pool"
-	"github.com/roadrunner-server/sdk/v4/worker"
-
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v4/events"
 	"github.com/roadrunner-server/sdk/v4/fsm"
 	"github.com/roadrunner-server/sdk/v4/utils"
+	"github.com/roadrunner-server/sdk/v4/worker"
 	"github.com/roadrunner-server/sdk/v4/worker_watcher/container/channel"
 	"go.uber.org/zap"
 )
+
+// Allocator is responsible for worker allocation in the pool
+type Allocator func() (*worker.Process, error)
 
 type WorkerWatcher struct {
 	sync.RWMutex
@@ -30,12 +31,12 @@ type WorkerWatcher struct {
 
 	log *zap.Logger
 
-	allocator       pool.Allocator
+	allocator       Allocator
 	allocateTimeout time.Duration
 }
 
 // NewSyncWorkerWatcher is a constructor for the Watcher
-func NewSyncWorkerWatcher(allocator pool.Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
+func NewSyncWorkerWatcher(allocator Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
 	eb, _ := events.NewEventBus()
 	return &WorkerWatcher{
 		container: channel.NewVector(numWorkers),

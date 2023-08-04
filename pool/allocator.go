@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"os/exec"
 	"time"
 
 	"github.com/roadrunner-server/errors"
@@ -11,11 +12,20 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Allocator is responsible for worker allocation in the pool
-type Allocator func() (*worker.Process, error)
+// Factory is responsible for wrapping given command into tasks WorkerProcess.
+type Factory interface {
+	// SpawnWorkerWithTimeout creates new WorkerProcess process based on given command with context.
+	// Process must not be started.
+	SpawnWorkerWithTimeout(context.Context, *exec.Cmd) (*worker.Process, error)
+	// SpawnWorker creates new WorkerProcess process based on given command.
+	// Process must not be started.
+	SpawnWorker(*exec.Cmd) (*worker.Process, error)
+	// Close the factory and underlying connections.
+	Close() error
+}
 
-// NewPoolAllocator initializes a allocator of the workers
-func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command string, log *zap.Logger) Allocator {
+// NewPoolAllocator initializes allocator of the workers
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command string, log *zap.Logger) func() (*worker.Process, error) {
 	return func() (*worker.Process, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -35,7 +45,7 @@ func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factor
 }
 
 // AllocateParallel allocate required number of stack
-func AllocateParallel(numWorkers uint64, allocator Allocator) ([]*worker.Process, error) {
+func AllocateParallel(numWorkers uint64, allocator func() (*worker.Process, error)) ([]*worker.Process, error) {
 	const op = errors.Op("static_pool_allocate_workers")
 
 	workers := make([]*worker.Process, numWorkers)

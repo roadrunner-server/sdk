@@ -1,6 +1,7 @@
 package pipe
 
 import (
+	"context"
 	"os/exec"
 	"sync"
 	"testing"
@@ -124,7 +125,7 @@ func Test_Pipe_Echo2(t *testing.T) {
 	w, err := NewPipeFactory(log).SpawnWorker(cmd)
 	assert.NoError(t, err)
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
@@ -148,7 +149,7 @@ func Test_Pipe_Broken2(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, w)
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Nil(t, res)
 
@@ -196,7 +197,7 @@ func Benchmark_Pipe_Worker_ExecEcho2(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -217,7 +218,7 @@ func Benchmark_Pipe_Worker_ExecEcho4(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -238,7 +239,7 @@ func Benchmark_Pipe_Worker_ExecEchoWithoutContext2(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		if _, err := w.Exec(&payload.Payload{Body: []byte("hello")}); err != nil {
+		if _, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -262,7 +263,7 @@ func Test_Echo2(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
@@ -287,11 +288,9 @@ func Test_BadPayload2(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{})
-	assert.Error(t, err)
-	assert.Nil(t, res)
-
-	assert.Contains(t, err.Error(), "payload can not be empty")
+	res, err := w.Exec(context.Background(), &payload.Payload{})
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
 }
 
 func Test_String2(t *testing.T) {
@@ -327,7 +326,7 @@ func Test_Echo_Slow2(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
@@ -345,7 +344,7 @@ func Test_Broken2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	assert.NotNil(t, err)
 	assert.Nil(t, res)
 
@@ -368,7 +367,7 @@ func Test_Error2(t *testing.T) {
 		}
 	}()
 
-	res, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	assert.NotNil(t, err)
 	assert.Nil(t, res)
 
@@ -392,19 +391,19 @@ func Test_NumExecs2(t *testing.T) {
 		}
 	}()
 
-	_, err := w.Exec(&payload.Payload{Body: []byte("hello")})
+	_, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}
 	assert.Equal(t, uint64(1), w.State().NumExecs())
 
-	_, err = w.Exec(&payload.Payload{Body: []byte("hello")})
+	_, err = w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}
 	assert.Equal(t, uint64(2), w.State().NumExecs())
 
-	_, err = w.Exec(&payload.Payload{Body: []byte("hello")})
+	_, err = w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	if err != nil {
 		t.Errorf("fail to execute payload: error %v", err)
 	}

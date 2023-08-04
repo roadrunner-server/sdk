@@ -29,14 +29,15 @@ func FuzzStaticPoolEcho(f *testing.F) {
 		if len(data) == 0 {
 			data = []byte("1")
 		}
-		res, err := p.Exec(ctx, &payload.Payload{Body: data})
 
+		respCh, err := p.Exec(ctx, &payload.Payload{Body: data})
 		assert.NoError(t, err)
+		res := <-respCh
 		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
+		assert.NotNil(t, res.Body())
+		assert.Empty(t, res.Context())
 
-		assert.Equal(t, data, res.Body)
+		assert.Equal(t, data, res.Body())
 	})
 
 	p.Destroy(ctx)
