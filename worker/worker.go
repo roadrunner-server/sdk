@@ -236,8 +236,10 @@ func (w *Process) StreamCancel() error {
 	fr.WriteCRC(fr.Header())
 
 	err := w.Relay().Send(fr)
+	w.State().RegisterExec()
 	if err != nil {
 		w.putFrame(fr)
+		w.State().Transition(fsm.StateErrored)
 		return errors.E(op, errors.Network, err)
 	}
 

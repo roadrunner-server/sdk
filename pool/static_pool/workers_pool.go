@@ -236,7 +236,7 @@ begin:
 				case <-stopCh:
 					err = w.StreamCancel()
 					if err != nil {
-						resp <- newPExec(nil, err)
+						sp.log.Warn("stream cancel error", zap.Error(err))
 					}
 					runtime.Goexit()
 				default:
