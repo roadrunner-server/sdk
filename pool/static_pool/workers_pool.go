@@ -124,7 +124,7 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 }
 
 // Exec executes provided payload on the worker
-func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (chan *PExec, error) {
+func (sp *Pool) Exec(ctx context.Context, p *payload.Payload, stopCh chan struct{}) (chan *PExec, error) {
 	const op = errors.Op("static_pool_exec")
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
@@ -231,15 +231,25 @@ begin:
 
 			// stream iterator
 			for {
-				pld, next, err := w.StreamIter()
-				if err != nil {
-					resp <- newPExec(nil, err) // exit from the goroutine
+				select {
+				// we received stop signal
+				case <-stopCh:
+					err = w.StreamCancel()
+					if err != nil {
+						resp <- newPExec(nil, err)
+					}
 					runtime.Goexit()
-				}
+				default:
+					pld, next, err := w.StreamIter()
+					if err != nil {
+						resp <- newPExec(nil, err) // exit from the goroutine
+						runtime.Goexit()
+					}
 
-				resp <- newPExec(pld, nil)
-				if !next {
-					runtime.Goexit()
+					resp <- newPExec(pld, nil)
+					if !next {
+						runtime.Goexit()
+					}
 				}
 			}
 		}()
@@ -251,7 +261,7 @@ begin:
 		sp.ww.Release(w)
 		return resp, nil
 	default:
-		panic("unreachable")
+		panic("workers_pool unreachable!")
 	}
 }
 

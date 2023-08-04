@@ -224,6 +224,27 @@ func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 	return pld, pld.IsStream, nil
 }
 
+// StreamCancel sends stop bit to the worker
+func (w *Process) StreamCancel() error {
+	const op = errors.Op("sync_worker_send_frame")
+	// get a frame
+	fr := w.getFrame()
+
+	fr.WriteVersion(fr.Header(), frame.Version1)
+
+	fr.SetStopBit(fr.Header())
+	fr.WriteCRC(fr.Header())
+
+	err := w.Relay().Send(fr)
+	if err != nil {
+		w.putFrame(fr)
+		return errors.E(op, errors.Network, err)
+	}
+
+	w.putFrame(fr)
+	return nil
+}
+
 type wexec struct {
 	payload *payload.Payload
 	err     error

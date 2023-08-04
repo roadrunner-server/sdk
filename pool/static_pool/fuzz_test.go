@@ -24,13 +24,14 @@ func FuzzStaticPoolEcho(f *testing.F) {
 	assert.NoError(f, err)
 	assert.NotNil(f, p)
 
+	sc := make(chan struct{})
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// data can't be empty
 		if len(data) == 0 {
 			data = []byte("1")
 		}
 
-		respCh, err := p.Exec(ctx, &payload.Payload{Body: data})
+		respCh, err := p.Exec(ctx, &payload.Payload{Body: data}, sc)
 		assert.NoError(t, err)
 		res := <-respCh
 		assert.NotNil(t, res)
