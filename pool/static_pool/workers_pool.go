@@ -259,6 +259,8 @@ begin:
 		resp <- newPExec(rsp, nil)
 		// return worker back
 		sp.ww.Release(w)
+		// close the channel
+		close(resp)
 		return resp, nil
 	default:
 		panic("workers_pool unreachable!")
