@@ -47,12 +47,10 @@ func Test_SupervisedPool_Exec(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-		err = p.Exec(ctx, &payload.Payload{
+		_, err = p.Exec(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh, stopCh)
+		})
 		require.NoError(t, err)
 	}
 
@@ -86,9 +84,7 @@ func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	_ = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	_, _ = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 
 	ctx, cancel := context.WithTimeout(ctx, time.Nanosecond)
 	defer cancel()
@@ -135,9 +131,7 @@ func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 	assert.NoError(t, err)
 
 	wrks := p.Workers()
@@ -145,9 +139,7 @@ func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 		assert.NoError(t, p.RemoveWorker(wrks[i]))
 	}
 
-	respCh = make(chan *payload.Payload, 1)
-	stopCh = make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, respCh, stopCh)
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil})
 	assert.NoError(t, err)
 
 	assert.Len(t, p.Workers(), 0)
@@ -214,12 +206,10 @@ func TestSupervisedPool_ExecWithDebugMode(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-		err = p.Exec(ctx, &payload.Payload{
+		_, err = p.Exec(ctx, &payload.Payload{
 			Context: []byte(""),
 			Body:    []byte("foo"),
-		}, respCh, stopCh)
+		})
 		assert.NoError(t, err)
 	}
 
@@ -254,12 +244,10 @@ func TestSupervisedPool_ExecTTL_TimedOut(t *testing.T) {
 
 	pid := p.Workers()[0].Pid()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	_, err = p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.Error(t, err)
 
 	time.Sleep(time.Second * 1)
@@ -289,36 +277,32 @@ func TestSupervisedPool_TTL_WorkerRestarted(t *testing.T) {
 
 	pid := p.Workers()[0].Pid()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Equal(t, string(resp.Body), "hello world")
-	assert.Empty(t, resp.Context)
+	assert.Equal(t, string(resp.Body()), "hello world")
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second)
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
 	require.Equal(t, p.Workers()[0].State().CurrentState(), fsm.StateReady)
 	pid = p.Workers()[0].Pid()
 
-	respCh = make(chan *payload.Payload, 1)
-	stopCh = make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err = p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp = <-respCh
 
-	assert.Equal(t, string(resp.Body), "hello world")
-	assert.Empty(t, resp.Context)
+	assert.Equal(t, string(resp.Body()), "hello world")
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second)
 	// should be new worker with new pid
@@ -355,28 +339,25 @@ func TestSupervisedPool_Idle(t *testing.T) {
 
 	pid := p.Workers()[0].Pid()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Empty(t, resp.Body)
-	assert.Empty(t, resp.Context)
+	assert.Empty(t, resp.Body())
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second * 5)
 
 	// worker should be marked as invalid and reallocated
-	respCh = make(chan *payload.Payload, 1)
-	stopCh = make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	_, err = p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
+
 	assert.NoError(t, err)
 	time.Sleep(time.Second * 2)
 	require.Len(t, p.Workers(), 1)
@@ -411,18 +392,16 @@ func TestSupervisedPool_IdleTTL_StateAfterTimeout(t *testing.T) {
 	pid := p.Workers()[0].Pid()
 
 	time.Sleep(time.Millisecond * 100)
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Empty(t, resp.Body)
-	assert.Empty(t, resp.Context)
+	assert.Empty(t, resp.Body())
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second * 5)
 
@@ -466,18 +445,16 @@ func TestSupervisedPool_ExecTTL_OK(t *testing.T) {
 	pid := p.Workers()[0].Pid()
 
 	time.Sleep(time.Millisecond * 100)
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Empty(t, resp.Body)
-	assert.Empty(t, resp.Context)
+	assert.Empty(t, resp.Body())
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second * 1)
 	// should be the same pid
@@ -512,18 +489,16 @@ func TestSupervisedPool_ShouldRespond(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Equal(t, []byte("alive"), resp.Body)
-	assert.Empty(t, resp.Context)
+	assert.Equal(t, []byte("alive"), resp.Body())
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second)
 	p.Destroy(context.Background())
@@ -558,18 +533,16 @@ func TestSupervisedPool_MaxMemoryReached(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	respCh, err := p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	assert.NoError(t, err)
 
 	resp := <-respCh
 
-	assert.Empty(t, resp.Body)
-	assert.Empty(t, resp.Context)
+	assert.Empty(t, resp.Body())
+	assert.Empty(t, resp.Context())
 
 	time.Sleep(time.Second)
 	p.Destroy(context.Background())
@@ -591,9 +564,7 @@ func Test_SupervisedPool_FastCancel(t *testing.T) {
 
 	newCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(newCtx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	_, err = p.Exec(newCtx, &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
@@ -624,12 +595,10 @@ func Test_SupervisedPool_AllocateFailedOK(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// should be ok
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{
+	_, err = p.Exec(ctx, &payload.Payload{
 		Context: []byte(""),
 		Body:    []byte("foo"),
-	}, respCh, stopCh)
+	})
 	require.NoError(t, err)
 
 	// after creating this file, PHP will fail
@@ -672,15 +641,11 @@ func Test_SupervisedPool_NoFreeWorkers(t *testing.T) {
 	go func() {
 		ctxNew, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-		_ = p.Exec(ctxNew, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+		_, _ = p.Exec(ctxNew, &payload.Payload{Body: []byte("hello")})
 	}()
 
 	time.Sleep(time.Second)
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
 
 	time.Sleep(time.Second)

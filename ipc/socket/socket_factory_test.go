@@ -209,10 +209,9 @@ func Test_Tcp_Broken(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
 	assert.Error(t, err)
+	assert.Nil(t, res)
 	wg.Wait()
 
 	time.Sleep(time.Second)
@@ -250,13 +249,10 @@ func Test_Tcp_Echo(t *testing.T) {
 		}
 	}()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
+
 	assert.NoError(t, err)
-
-	res := <-respCh
-
+	assert.NotNil(t, res)
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
 
@@ -388,10 +384,10 @@ func Test_Unix_Broken(t *testing.T) {
 		assert.Error(t, errW)
 	}()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
+
 	assert.Error(t, err)
+	assert.Nil(t, res)
 
 	time.Sleep(time.Second)
 	err = w.Stop()
@@ -430,13 +426,10 @@ func Test_Unix_Echo(t *testing.T) {
 		}
 	}()
 
-	respCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-	err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh)
+	res, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")})
+
 	assert.NoError(t, err)
-
-	res := <-respCh
-
+	assert.NotNil(t, res)
 	assert.NotNil(t, res.Body)
 	assert.Empty(t, res.Context)
 
@@ -504,9 +497,7 @@ func Benchmark_Tcp_Worker_ExecEcho(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-		if err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh); err != nil {
+		if _, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}
@@ -569,9 +560,7 @@ func Benchmark_Unix_Worker_ExecEcho(b *testing.B) {
 	}()
 
 	for n := 0; n < b.N; n++ {
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-		if err = w.Exec(&payload.Payload{Body: []byte("hello")}, respCh, stopCh); err != nil {
+		if _, err := w.Exec(context.Background(), &payload.Payload{Body: []byte("hello")}); err != nil {
 			b.Fail()
 		}
 	}

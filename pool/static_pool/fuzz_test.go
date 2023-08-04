@@ -30,17 +30,14 @@ func FuzzStaticPoolEcho(f *testing.F) {
 			data = []byte("1")
 		}
 
-		respCh := make(chan *payload.Payload, 1)
-		stopCh := make(chan struct{}, 1)
-
-		err = p.Exec(ctx, &payload.Payload{Body: data}, respCh, stopCh)
+		respCh, err := p.Exec(ctx, &payload.Payload{Body: data})
 		assert.NoError(t, err)
 		res := <-respCh
 		assert.NotNil(t, res)
-		assert.NotNil(t, res.Body)
-		assert.Empty(t, res.Context)
+		assert.NotNil(t, res.Body())
+		assert.Empty(t, res.Context())
 
-		assert.Equal(t, data, res.Body)
+		assert.Equal(t, data, res.Body())
 	})
 
 	p.Destroy(ctx)

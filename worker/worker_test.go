@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"os/exec"
 	"testing"
 
@@ -35,14 +36,10 @@ func Test_NotStarted_Exec(t *testing.T) {
 	w, err := InitBaseWorker(cmd)
 	require.NoError(t, err)
 
-	pldCh := make(chan *payload.Payload, 1)
-	stopCh := make(chan struct{}, 1)
-
-	err = w.Exec(&payload.Payload{
+	_, err = w.Exec(context.Background(), &payload.Payload{
 		Body: []byte("hello"),
-	}, pldCh, stopCh)
+	})
 
 	assert.Error(t, err)
-
 	assert.Contains(t, err.Error(), "Process is not ready (inactive)")
 }

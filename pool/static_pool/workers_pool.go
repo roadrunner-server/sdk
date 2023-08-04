@@ -2,6 +2,7 @@ package static_pool //nolint:stylecheck
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -123,16 +124,21 @@ func (sp *Pool) RemoveWorker(wb *worker.Process) error {
 }
 
 // Exec executes provided payload on the worker
-func (sp *Pool) Exec(ctx context.Context, p *payload.Payload, respCh chan *payload.Payload, stopCh chan struct{}) error {
+func (sp *Pool) Exec(ctx context.Context, p *payload.Payload) (chan *PExec, error) {
 	const op = errors.Op("static_pool_exec")
+
+	if len(p.Body) == 0 && len(p.Context) == 0 {
+		return nil, errors.E(op, errors.Str("payload can not be empty"))
+	}
+
 	if sp.cfg.Debug {
 		switch sp.supervisedExec {
 		case true:
 			ctxTTL, cancel := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
 			defer cancel()
-			return sp.execDebug(ctxTTL, p, true, respCh, stopCh)
+			return sp.execDebug(ctxTTL, p)
 		case false:
-			return sp.execDebug(ctx, p, false, respCh, stopCh)
+			return sp.execDebug(context.Background(), p)
 		}
 	}
 
@@ -148,19 +154,19 @@ begin:
 	defer cancel()
 	w, err := sp.takeWorker(ctxGetFree, op)
 	if err != nil {
-		return errors.E(op, err)
+		return nil, errors.E(op, err)
 	}
 
-	/*
-		in the supervisedExec mode we're limiting the allowed time for the execution inside the PHP worker
-	*/
+	var rsp *payload.Payload
 	switch sp.supervisedExec {
 	case true:
+		// in the supervisedExec mode we're limiting the allowed time for the execution inside the PHP worker
 		ctxT, cancelT := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
 		defer cancelT()
-		err = w.ExecWithTTL(ctxT, p, respCh, stopCh)
+		rsp, err = w.Exec(ctxT, p)
 	case false:
-		err = w.Exec(p, respCh, stopCh)
+		// no context here
+		rsp, err = w.Exec(context.Background(), p)
 	}
 
 	if err != nil {
@@ -177,7 +183,7 @@ begin:
 			w.State().Transition(fsm.StateInvalid)
 			sp.ww.Release(w)
 
-			return err
+			return nil, err
 		case errors.Is(errors.SoftJob, err):
 			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "worker error"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
 			// soft jobs errors are allowed, just put the worker back
@@ -187,7 +193,7 @@ begin:
 			}
 			sp.ww.Release(w)
 
-			return err
+			return nil, err
 		case errors.Is(errors.Network, err):
 			// in case of network error, we can't stop the worker, we should kill it
 			w.State().Transition(fsm.StateInvalid)
@@ -195,12 +201,12 @@ begin:
 			// kill the worker instead of sending net packet to it
 			_ = w.Kill()
 
-			return err
+			return nil, err
 		default:
 			w.State().Transition(fsm.StateInvalid)
 			sp.log.Warn("worker will be restarted", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
 
-			return err
+			return nil, err
 		}
 	}
 
@@ -209,9 +215,44 @@ begin:
 			w.State().Transition(fsm.StateMaxJobsReached)
 		}
 	}
-	// return worker back
-	sp.ww.Release(w)
-	return nil
+
+	// create channel for the stream (only if there are no errors)
+	resp := make(chan *PExec, 1)
+
+	switch rsp.IsStream {
+	case true:
+		// in case of stream we should not return worker back immediately
+		go func() {
+			// would be called on Goexit
+			defer func() {
+				close(resp)
+				sp.ww.Release(w)
+			}()
+
+			// stream iterator
+			for {
+				pld, next, err := w.StreamIter()
+				if err != nil {
+					resp <- newPExec(nil, err) // exit from the goroutine
+					runtime.Goexit()
+				}
+
+				resp <- newPExec(pld, nil)
+				if !next {
+					runtime.Goexit()
+				}
+			}
+		}()
+
+		return resp, nil
+	case false:
+		resp <- newPExec(rsp, nil)
+		// return worker back
+		sp.ww.Release(w)
+		return resp, nil
+	default:
+		panic("unreachable")
+	}
 }
 
 func (sp *Pool) QueueSize() uint64 {
@@ -272,24 +313,10 @@ func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Pr
 }
 
 // execDebug used when debug mode was not set and exec_ttl is 0
-func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, ttl bool, respCh chan *payload.Payload, stopCh chan struct{}) error {
+func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload) (chan *PExec, error) {
 	sw, err := sp.allocator()
 	if err != nil {
-		return err
-	}
-
-	switch ttl {
-	case true:
-		// redirect call to the workers' exec method (without ttl)
-		err = sw.Exec(p, respCh, stopCh)
-		if err != nil {
-			return err
-		}
-	case false:
-		err = sw.ExecWithTTL(ctx, p, respCh, stopCh)
-		if err != nil {
-			return err
-		}
+		return nil, err
 	}
 
 	go func() {
@@ -297,6 +324,13 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, ttl bool, res
 		_ = sw.Wait()
 	}()
 
+	pld, err := sw.Exec(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := make(chan *PExec, 1)
+	resp <- newPExec(pld, nil)
 	// destroy the worker
 	err = sw.Stop()
 	if err != nil {
@@ -307,10 +341,10 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, ttl bool, res
 			zap.String("internal_event_name", events.EventWorkerError.String()),
 			zap.Error(err),
 		)
-		return err
 	}
 
-	return nil
+	// we can skip stop error in debug mode. It's more important to send back a response
+	return resp, nil
 }
 
 /*

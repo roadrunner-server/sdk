@@ -9,12 +9,12 @@ import (
 type Payload struct {
 	// Context represent payload context, might be omitted.
 	Context []byte
-
 	// body contains binary payload to be processed by WorkerProcess.
 	Body []byte
-
 	// Type of codec used to decode/encode payload
 	Codec byte
+	// IsStream indicates that payload is stream
+	IsStream bool
 }
 
 // String returns payload body as string

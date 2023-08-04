@@ -45,8 +45,9 @@ type Process struct {
 	// can be nil while process is not started.
 	pid int
 
-	fPool sync.Pool
-	bPool sync.Pool
+	fPool  sync.Pool
+	bPool  sync.Pool
+	chPool sync.Pool
 
 	doneCh chan struct{}
 
@@ -70,10 +71,14 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 				return frame.NewFrame()
 			},
 		},
-
 		bPool: sync.Pool{
 			New: func() any {
 				return new(bytes.Buffer)
+			},
+		},
+		chPool: sync.Pool{
+			New: func() any {
+				return make(chan *wexec, 1)
 			},
 		},
 	}
@@ -209,103 +214,85 @@ func (w *Process) Wait() error {
 	return err
 }
 
-// Exec payload without TTL timeout.
-func (w *Process) Exec(p *payload.Payload, respCh chan *payload.Payload, stopCh chan struct{}) error {
-	const op = errors.Op("worker_exec")
-
-	if len(p.Body) == 0 && len(p.Context) == 0 {
-		close(respCh)
-		return errors.E(op, errors.Str("payload can not be empty"))
+// StreamIter returns true if stream is available and payload
+func (w *Process) StreamIter() (*payload.Payload, bool, error) {
+	pld, err := w.receiveFrame()
+	if err != nil {
+		return nil, false, err
 	}
 
-	if !w.State().Compare(fsm.StateReady) {
-		close(respCh)
-		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
-	}
+	return pld, pld.IsStream, nil
+}
 
-	// set last used time
-	w.State().SetLastUsed(uint64(time.Now().UnixNano()))
-	w.State().Transition(fsm.StateWorking)
-
-	err := w.execPayload(p, respCh, stopCh, make(chan struct{}, 1))
-	w.State().RegisterExec()
-	if err != nil && !errors.Is(errors.Stop, err) {
-		// just to be more verbose
-		if !errors.Is(errors.SoftJob, err) {
-			w.State().Transition(fsm.StateErrored)
-		}
-		close(respCh)
-		return errors.E(op, err)
-	}
-
-	// supervisor may set state of the worker during the work
-	// in this case we should not re-write the worker state
-	if !w.State().Compare(fsm.StateWorking) {
-		close(respCh)
-		return nil
-	}
-
-	w.State().Transition(fsm.StateReady)
-
-	return nil
+type wexec struct {
+	payload *payload.Payload
+	err     error
 }
 
 // ExecWithTTL executes payload without TTL timeout.
-func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload, respCh chan *payload.Payload, stopCh chan struct{}) error {
+func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("worker_exec_with_timeout")
 
-	if len(p.Body) == 0 && len(p.Context) == 0 {
-		close(respCh)
-		return errors.E(op, errors.Str("payload can not be empty"))
-	}
+	c := w.getCh()
+	defer w.putCh(c)
 
 	// worker was killed before it started to work (supervisor)
 	if !w.State().Compare(fsm.StateReady) {
-		close(respCh)
-		return errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
+		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
 	}
 	// set last used time
 	w.State().SetLastUsed(uint64(time.Now().UnixNano()))
 	w.State().Transition(fsm.StateWorking)
-	finishedCh := make(chan struct{}, 1)
 
 	go func() {
-		err := w.execPayload(p, respCh, stopCh, finishedCh)
+		rsp, err := w.execPayload(ctx, p)
 		w.State().RegisterExec()
 		if err != nil {
 			// just to be more verbose
 			if !errors.Is(errors.SoftJob, err) {
 				w.State().Transition(fsm.StateErrored)
-				w.State().RegisterExec()
+			}
+			c <- &wexec{
+				err: errors.E(op, err),
 			}
 			return
 		}
 
 		if !w.State().Compare(fsm.StateWorking) {
-			w.State().RegisterExec()
+			c <- &wexec{
+				payload: rsp,
+				err:     nil,
+			}
 			return
 		}
 
 		w.State().Transition(fsm.StateReady)
+
+		c <- &wexec{
+			payload: rsp,
+			err:     nil,
+		}
 	}()
 
 	select {
 	// exec TTL reached
 	case <-ctx.Done():
-		// try to stop stream if it's running
-		select {
-		case <-stopCh:
-		default:
-		}
 		errK := w.Kill()
 		err := stderr.Join(errK)
+		// we should wait for the exit from the worker
+		// 'c' channel here should return an error or nil
+		// because the goroutine holds the payload pointer (from the sync.Pool)
+		<-c
 		if err != nil {
 			// append timeout error
-			return stderr.Join(err, ctx.Err(), errors.E(op, errors.ExecTTL))
+			return nil, stderr.Join(err, ctx.Err(), errors.E(op, errors.ExecTTL))
 		}
-		return errors.E(op, errors.ExecTTL, ctx.Err())
-	case <-finishedCh:
-		return nil
+		return nil, errors.E(op, errors.ExecTTL, ctx.Err())
+	case res := <-c:
+		if res.err != nil {
+			return nil, res.err
+		}
+		return res.payload, nil
 	}
 }
 
@@ -387,16 +374,49 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
 	return nil
 }
 
-func (w *Process) execPayload(p *payload.Payload, respCh chan *payload.Payload, stopCh chan struct{}, finishedCh chan struct{}) error {
-	const op = errors.Op("sync_worker_exec_payload")
-	defer func() {
-		close(respCh)
-		finishedCh <- struct{}{}
+func (w *Process) execPayload(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
+	ch := w.getCh()
+
+	// we can save some time by firing receiveFrame method in a separate goroutine
+	go func() {
+		we := &wexec{}
+		pld, err := w.receiveFrame()
+		if err != nil {
+			we.err = err
+			ch <- we
+			return
+		}
+		we.payload = pld
+		ch <- we
 	}()
 
+	err := w.sendFrame(p)
+	if err != nil {
+		w.putCh(ch)
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case data := <-ch:
+		if data.err != nil {
+			er := data.err
+			w.putCh(ch)
+			return nil, er
+		}
+
+		res := data.payload
+		w.putCh(ch)
+		return res, nil
+	}
+}
+
+// sendFrame sends frame to the worker
+func (w *Process) sendFrame(p *payload.Payload) error {
+	const op = errors.Op("sync_worker_send_frame")
 	// get a frame
 	fr := w.getFrame()
-	defer w.putFrame(fr)
 	buf := w.get()
 
 	// can be 0 here
@@ -419,81 +439,62 @@ func (w *Process) execPayload(p *payload.Payload, respCh chan *payload.Payload, 
 
 	err := w.Relay().Send(fr)
 	if err != nil {
+		w.putFrame(fr)
 		return errors.E(op, errors.Network, err)
 	}
+	w.putFrame(fr)
+	return nil
+}
+
+func (w *Process) receiveFrame() (*payload.Payload, error) {
+	const op = errors.Op("sync_worker_receive_frame")
 
 	frameR := w.getFrame()
-	defer w.putFrame(frameR)
 
-stream:
-	err = w.Relay().Receive(frameR)
+	err := w.Relay().Receive(frameR)
 	if err != nil {
-		return errors.E(op, errors.Network, err)
+		w.putFrame(frameR)
+		return nil, errors.E(op, errors.Network, err)
 	}
 
 	if frameR == nil {
-		return errors.E(op, errors.Network, errors.Str("nil frame received"))
+		w.putFrame(frameR)
+		return nil, errors.E(op, errors.Network, errors.Str("nil frame received"))
 	}
 
 	flags := frameR.ReadFlags()
 
 	if flags&frame.ERROR != byte(0) {
-		return errors.E(op, errors.SoftJob, errors.Str(string(frameR.Payload())))
+		// we need to copy the payload because we will put the frame back to the pool
+		cp := make([]byte, len(frameR.Payload()))
+		copy(cp, frameR.Payload())
+
+		w.putFrame(frameR)
+		return nil, errors.E(op, errors.SoftJob, errors.Str(string(cp)))
 	}
 
 	options := frameR.ReadOptions(frameR.Header())
 	if len(options) != 1 {
-		return errors.E(op, errors.Decode, errors.Str("options length should be equal 1 (body offset)"))
+		w.putFrame(frameR)
+		return nil, errors.E(op, errors.Decode, errors.Str("options length should be equal 1 (body offset)"))
 	}
 
 	// bound check
 	if len(frameR.Payload()) < int(options[0]) {
-		return errors.E(errors.Network, errors.Errorf("bad payload %s", frameR.Payload()))
+		// we need to copy the payload because we will put the frame back to the pool
+		cp := make([]byte, len(frameR.Payload()))
+		copy(cp, frameR.Payload())
+
+		w.putFrame(frameR)
+		return nil, errors.E(errors.Network, errors.Errorf("bad payload %s", cp))
 	}
 
-	// handle stream response
-	if frameR.IsStream(frameR.Header()) {
-		// check if user wants to stop the stream
-		select {
-		case <-stopCh:
-			frSt := w.getFrame()
-			defer w.putFrame(frSt)
-			// can be 0 here
-			frSt.WriteVersion(frSt.Header(), frame.Version1)
-			frSt.WriteFlags(frSt.Header(), p.Codec)
-
-			frSt.WritePayloadLen(frSt.Header(), 0)
-			frSt.WriteCRC(frSt.Header())
-
-			err = w.Relay().Send(frSt)
-			if err != nil {
-				return errors.E(op, errors.Network, err)
-			}
-			return nil
-		default:
-		}
-
-		// send first frame
-		pld := &payload.Payload{
-			Codec:   flags,
-			Body:    make([]byte, len(frameR.Payload()[options[0]:])),
-			Context: make([]byte, len(frameR.Payload()[:options[0]])),
-		}
-
-		// by copying we free frame's payload slice
-		// we do not hold the pointer from the smaller slice to the initial (which should be in the sync.Pool)
-		// https://blog.golang.org/slices-intro#TOC_6.
-		copy(pld.Body, frameR.Payload()[options[0]:])
-		copy(pld.Context, frameR.Payload()[:options[0]])
-
-		respCh <- pld
-		goto stream
-	}
-
+	isStream := frameR.IsStream(frameR.Header())
 	pld := &payload.Payload{
-		Codec:   flags,
-		Body:    make([]byte, len(frameR.Payload()[options[0]:])),
-		Context: make([]byte, len(frameR.Payload()[:options[0]])),
+		IsStream: isStream,
+		Codec:    flags,
+		Body:     make([]byte, len(frameR.Payload()[options[0]:])),
+		Context:  make([]byte, len(frameR.Payload()[:options[0]])),
 	}
 
 	// by copying we free frame's payload slice
@@ -502,8 +503,8 @@ stream:
 	copy(pld.Body, frameR.Payload()[options[0]:])
 	copy(pld.Context, frameR.Payload()[:options[0]])
 
-	respCh <- pld
-	return nil
+	w.putFrame(frameR)
+	return pld, nil
 }
 
 func (w *Process) closeRelay() error {
@@ -532,4 +533,17 @@ func (w *Process) getFrame() *frame.Frame {
 func (w *Process) putFrame(f *frame.Frame) {
 	f.Reset()
 	w.fPool.Put(f)
+}
+
+func (w *Process) getCh() chan *wexec {
+	return w.chPool.Get().(chan *wexec)
+}
+
+func (w *Process) putCh(ch chan *wexec) {
+	// just check if the chan is not empty
+	select {
+	case <-ch:
+	default:
+	}
+	w.chPool.Put(ch)
 }
