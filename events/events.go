@@ -21,6 +21,8 @@ const (
 	EventExecTTL
 	// EventWorkerError triggered after WorkerProcess. Except payload to be error.
 	EventWorkerError
+	// EventWorkerSoftError triggered after processing payload. This is not the panic/exception, we should not restart the worker.
+	EventWorkerSoftError
 	// EventWorkerStderr is the worker standard error output
 	EventWorkerStderr
 	// EventWorkerWaitExit is the worker exit event
@@ -55,6 +57,8 @@ func (et EventType) String() string {
 		return "EventWorkerWaitExit"
 	case EventWorkerStopped:
 		return "EventWorkerStopped"
+	case EventWorkerSoftError:
+		return "EventWorkerSoftError"
 	default:
 		return "UnknownEventType"
 	}

@@ -235,10 +235,14 @@ func (w *Process) Exec(p *payload.Payload) (*payload.Payload, error) {
 	rsp, err := w.execPayload(p)
 	w.State().RegisterExec()
 	if err != nil && !errors.Is(errors.Stop, err) {
-		// just to be more verbose
-		if !errors.Is(errors.SoftJob, err) {
-			w.State().Transition(fsm.StateErrored)
+		if errors.Is(errors.SoftJob, err) {
+			// transfer
+			if w.State().Compare(fsm.StateWorking) {
+				w.State().Transition(fsm.StateReady)
+			}
 		}
+
+		w.State().Transition(fsm.StateErrored)
 		return nil, errors.E(op, err)
 	}
 
@@ -279,20 +283,25 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 
 	go func() {
 		rsp, err := w.execPayload(p)
+		w.State().RegisterExec()
 		if err != nil {
-			// just to be more verbose
-			if !errors.Is(errors.SoftJob, err) {
-				w.State().Transition(fsm.StateErrored)
-				w.State().RegisterExec()
-			}
 			c <- wexec{
 				err: errors.E(op, err),
 			}
+
+			// just to be more verbose
+			if errors.Is(errors.SoftJob, err) {
+				if w.State().Compare(fsm.StateWorking) {
+					w.State().Transition(fsm.StateReady)
+				}
+				return
+			}
+
+			w.State().Transition(fsm.StateErrored)
 			return
 		}
 
 		if !w.State().Compare(fsm.StateWorking) {
-			w.State().RegisterExec()
 			c <- wexec{
 				payload: rsp,
 				err:     nil,
@@ -301,7 +310,6 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 		}
 
 		w.State().Transition(fsm.StateReady)
-		w.State().RegisterExec()
 
 		c <- wexec{
 			payload: rsp,
@@ -334,9 +342,9 @@ func (w *Process) ExecWithTTL(ctx context.Context, p *payload.Payload) (*payload
 // Stop sends soft termination command to the Process and waits for process completion.
 func (w *Process) Stop() error {
 	const op = errors.Op("process_stop")
+	w.fsm.Transition(fsm.StateStopping)
 
 	go func() {
-		w.fsm.Transition(fsm.StateStopping)
 		w.log.Debug("sending stop request to the worker", zap.Int("pid", w.pid))
 		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
 		if err == nil {
@@ -353,7 +361,6 @@ func (w *Process) Stop() error {
 	case <-time.After(time.Second * 10):
 		// kill process
 		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
-		w.fsm.Transition(fsm.StateKilling)
 		_ = w.cmd.Process.Signal(os.Kill)
 		w.fsm.Transition(fsm.StateStopped)
 		return errors.E(op, errors.Network)
@@ -363,7 +370,7 @@ func (w *Process) Stop() error {
 // Kill kills underlying process, make sure to call Wait() func to gather
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
-	w.fsm.Transition(fsm.StateKilling)
+	w.fsm.Transition(fsm.StateStopping)
 	err := w.cmd.Process.Kill()
 	if err != nil {
 		return err

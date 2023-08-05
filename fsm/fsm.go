@@ -57,14 +57,18 @@ func (s *Fsm) String() string {
 		return "stopping"
 	case StateStopped:
 		return "stopped"
-	case StateKilling:
-		return "killing"
 	case StateErrored:
 		return "errored"
 	case StateDestroyed:
 		return "destroyed"
 	case StateMaxJobsReached:
 		return "maxJobsReached"
+	case StateIdleTTLReached:
+		return "idleTTLReached"
+	case StateTTLReached:
+		return "ttlReached"
+	case StateMaxMemoryReached:
+		return "maxMemoryReached"
 	}
 
 	return "undefined"
@@ -125,19 +129,7 @@ func (s *Fsm) recognizer(to int64) error {
 
 		return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
 	// to
-	case StateInvalid:
-		// from
-		if atomic.LoadInt64(s.currentState) == StateDestroyed {
-			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
-		}
-	// to
-	case StateStopping:
-		// from
-		if atomic.LoadInt64(s.currentState) == StateDestroyed {
-			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
-		}
-	// to
-	case StateKilling:
+	case StateInvalid, StateStopping, StateStopped, StateMaxJobsReached, StateErrored, StateIdleTTLReached, StateTTLReached, StateMaxMemoryReached, StateExecTTLReached:
 		// from
 		if atomic.LoadInt64(s.currentState) == StateDestroyed {
 			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
@@ -145,24 +137,6 @@ func (s *Fsm) recognizer(to int64) error {
 	// to
 	case StateDestroyed:
 		return nil
-	// to
-	case StateMaxJobsReached:
-		// from
-		if atomic.LoadInt64(s.currentState) == StateDestroyed {
-			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
-		}
-	// to
-	case StateStopped:
-		// from
-		if atomic.LoadInt64(s.currentState) == StateDestroyed {
-			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
-		}
-	// to
-	case StateErrored:
-		// from
-		if atomic.LoadInt64(s.currentState) == StateDestroyed {
-			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
-		}
 	}
 
 	return nil

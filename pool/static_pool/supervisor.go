@@ -51,22 +51,27 @@ func (sp *Pool) control() {
 		// skip such worker
 		switch workers[i].State().CurrentState() {
 		case
-			fsm.StateInvalid,
-			fsm.StateErrored,
-			fsm.StateDestroyed,
 			fsm.StateInactive,
-			fsm.StateStopped,
+			fsm.StateErrored,
 			fsm.StateStopping,
-			fsm.StateMaxJobsReached,
-			fsm.StateKilling:
+			fsm.StateStopped,
+			fsm.StateInvalid,
+			fsm.StateMaxJobsReached:
 
 			// do no touch the bad worker until it pushed back to the stack
 			continue
-		case fsm.StateIdleTTLReached:
+
+		case
+			fsm.StateMaxMemoryReached,
+			fsm.StateIdleTTLReached,
+			fsm.StateTTLReached:
 			// we can stop workers which reached the idlettl state
+			// workers can be moved from these states ONLY by the supervisor and ONLY if the worker is in the StateReady
 			if workers[i] != nil {
 				_ = workers[i].Stop()
 			}
+
+			continue
 		}
 
 		s, err := process.WorkerProcessState(workers[i])
@@ -84,7 +89,15 @@ func (sp *Pool) control() {
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-			workers[i].State().Transition(fsm.StateInvalid)
+
+			// if the worker in the StateReady, it means, that it's not working on the request and we can safely stop/kill it
+			// but if the worker in the any other state, we can't stop it, because it might be in the middle of the request execution, instead, we're setting the Invalid state
+			if workers[i].State().Compare(fsm.StateReady) {
+				workers[i].State().Transition(fsm.StateTTLReached)
+			} else {
+				workers[i].State().Transition(fsm.StateInvalid)
+			}
+
 			sp.log.Debug("ttl", zap.String("reason", "ttl is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventTTL.String()))
 			continue
 		}
@@ -98,7 +111,15 @@ func (sp *Pool) control() {
 				                           TTL Reached, state - invalid                                                |
 																														-----> Worker Stopped here
 			*/
-			workers[i].State().Transition(fsm.StateInvalid)
+
+			// if the worker in the StateReady, it means, that it's not working on the request and we can safely stop/kill it
+			// but if the worker in the any other state, we can't stop it, because it might be in the middle of the request execution, instead, we're setting the Invalid state
+			if workers[i].State().Compare(fsm.StateReady) {
+				workers[i].State().Transition(fsm.StateMaxMemoryReached)
+			} else {
+				workers[i].State().Transition(fsm.StateInvalid)
+			}
+
 			sp.log.Debug("memory_limit", zap.String("reason", "max memory is reached"), zap.Int64("pid", workers[i].Pid()), zap.String("internal_event_name", events.EventMaxMemory.String()))
 			continue
 		}

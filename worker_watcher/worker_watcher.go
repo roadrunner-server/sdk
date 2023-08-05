@@ -192,8 +192,11 @@ func (ww *WorkerWatcher) Release(w *worker.Process) {
 		fsm.StateErrored,
 		fsm.StateWorking,
 		fsm.StateInvalid,
+		fsm.StateMaxMemoryReached,
+		fsm.StateMaxJobsReached,
 		fsm.StateIdleTTLReached,
-		fsm.StateMaxJobsReached:
+		fsm.StateTTLReached,
+		fsm.StateExecTTLReached:
 
 		err := w.Stop()
 		if err != nil {
