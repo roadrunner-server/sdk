@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -208,7 +209,6 @@ func (w *Process) Wait() error {
 
 	if w.cmd.ProcessState.Success() {
 		w.State().Transition(fsm.StateStopped)
-		return nil
 	}
 
 	return err
@@ -252,15 +252,15 @@ type wexec struct {
 	err     error
 }
 
-// ExecWithTTL executes payload without TTL timeout.
+// Exec executes payload with TTL timeout in the context.
 func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("worker_exec_with_timeout")
 
 	c := w.getCh()
-	defer w.putCh(c)
 
 	// worker was killed before it started to work (supervisor)
 	if !w.State().Compare(fsm.StateReady) {
+		w.putCh(c)
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
 	}
 	// set last used time
@@ -268,25 +268,45 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 	w.State().Transition(fsm.StateWorking)
 
 	go func() {
-		rsp, err := w.execPayload(ctx, p)
-		w.State().RegisterExec()
+		err := w.sendFrame(p)
 		if err != nil {
-			// just to be more verbose
-			if !errors.Is(errors.SoftJob, err) {
-				w.State().Transition(fsm.StateErrored)
-			}
 			c <- &wexec{
-				err: errors.E(op, err),
+				err: err,
 			}
-			return
+			runtime.Goexit()
 		}
 
+		w.State().RegisterExec()
+		rsp, err := w.receiveFrame()
+		if err != nil {
+			c <- &wexec{
+				err: err,
+			}
+
+			/*
+				in case of soft job error, we should not kill the worker, this is just an error payload from the worker.
+			*/
+			if errors.Is(errors.SoftJob, err) {
+				// check if the supervisor changed the state
+				if w.State().Compare(fsm.StateWorking) {
+					w.State().Transition(fsm.StateReady)
+				}
+				runtime.Goexit()
+			}
+
+			w.State().Transition(fsm.StateErrored)
+			runtime.Goexit()
+		}
+
+		// double check the state, should be `working`
+		// if not, supervisor might change the state (TTL)
 		if !w.State().Compare(fsm.StateWorking) {
 			c <- &wexec{
 				payload: rsp,
 				err:     nil,
 			}
-			return
+
+			runtime.Goexit()
 		}
 
 		w.State().Transition(fsm.StateReady)
@@ -307,14 +327,18 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 		// because the goroutine holds the payload pointer (from the sync.Pool)
 		<-c
 		if err != nil {
+			w.putCh(c)
 			// append timeout error
 			return nil, stderr.Join(err, ctx.Err(), errors.E(op, errors.ExecTTL))
 		}
+		w.putCh(c)
 		return nil, errors.E(op, errors.ExecTTL, ctx.Err())
 	case res := <-c:
 		if res.err != nil {
+			w.putCh(c)
 			return nil, res.err
 		}
+		w.putCh(c)
 		return res.payload, nil
 	}
 }
@@ -322,9 +346,9 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 // Stop sends soft termination command to the Process and waits for process completion.
 func (w *Process) Stop() error {
 	const op = errors.Op("process_stop")
+	w.fsm.Transition(fsm.StateStopping)
 
 	go func() {
-		w.fsm.Transition(fsm.StateStopping)
 		w.log.Debug("sending stop request to the worker", zap.Int("pid", w.pid))
 		err := internal.SendControl(w.relay, &internal.StopCommand{Stop: true})
 		if err == nil {
@@ -341,7 +365,6 @@ func (w *Process) Stop() error {
 	case <-time.After(time.Second * 10):
 		// kill process
 		w.log.Warn("worker doesn't respond on stop command, killing process", zap.Int64("PID", w.Pid()))
-		w.fsm.Transition(fsm.StateKilling)
 		_ = w.cmd.Process.Signal(os.Kill)
 		w.fsm.Transition(fsm.StateStopped)
 		return errors.E(op, errors.Network)
@@ -351,7 +374,7 @@ func (w *Process) Stop() error {
 // Kill kills underlying process, make sure to call Wait() func to gather
 // error log from the stderr. Does not wait for process completion!
 func (w *Process) Kill() error {
-	w.fsm.Transition(fsm.StateKilling)
+	w.fsm.Transition(fsm.StateStopping)
 	err := w.cmd.Process.Kill()
 	if err != nil {
 		return err
@@ -395,44 +418,6 @@ func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
 	}
 
 	return nil
-}
-
-func (w *Process) execPayload(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
-	ch := w.getCh()
-
-	// we can save some time by firing receiveFrame method in a separate goroutine
-	go func() {
-		we := &wexec{}
-		pld, err := w.receiveFrame()
-		if err != nil {
-			we.err = err
-			ch <- we
-			return
-		}
-		we.payload = pld
-		ch <- we
-	}()
-
-	err := w.sendFrame(p)
-	if err != nil {
-		w.putCh(ch)
-		return nil, err
-	}
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case data := <-ch:
-		if data.err != nil {
-			er := data.err
-			w.putCh(ch)
-			return nil, er
-		}
-
-		res := data.payload
-		w.putCh(ch)
-		return res, nil
-	}
 }
 
 // sendFrame sends frame to the worker

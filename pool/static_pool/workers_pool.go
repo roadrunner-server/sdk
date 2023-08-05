@@ -180,30 +180,30 @@ begin:
 		// for this case, worker already killed in the ExecTTL function
 		case errors.Is(errors.ExecTTL, err):
 			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "execTTL timeout elapsed"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventExecTTL.String()), zap.Error(err))
-			w.State().Transition(fsm.StateInvalid)
+			w.State().Transition(fsm.StateExecTTLReached)
 			sp.ww.Release(w)
 
 			return nil, err
 		case errors.Is(errors.SoftJob, err):
-			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "worker error"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+			sp.log.Warn("soft worker error, worker won't be restarted", zap.String("reason", "SoftJob"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerSoftError.String()), zap.Error(err))
 			// soft jobs errors are allowed, just put the worker back
 			if sp.cfg.MaxJobs != 0 && w.State().NumExecs() >= sp.cfg.MaxJobs {
 				// mark old as invalid and stop
-				w.State().Transition(fsm.StateInvalid)
+				w.State().Transition(fsm.StateMaxJobsReached)
 			}
 			sp.ww.Release(w)
 
 			return nil, err
 		case errors.Is(errors.Network, err):
 			// in case of network error, we can't stop the worker, we should kill it
-			w.State().Transition(fsm.StateInvalid)
+			w.State().Transition(fsm.StateErrored)
 			sp.log.Warn("network error", zap.String("reason", "network"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
 			// kill the worker instead of sending net packet to it
 			_ = w.Kill()
 
 			return nil, err
 		default:
-			w.State().Transition(fsm.StateInvalid)
+			w.State().Transition(fsm.StateErrored)
 			sp.log.Warn("worker will be restarted", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
 
 			return nil, err
