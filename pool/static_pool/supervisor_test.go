@@ -290,7 +290,7 @@ func TestSupervisedPool_TTL_WorkerRestarted(t *testing.T) {
 
 	time.Sleep(time.Second)
 	assert.NotEqual(t, pid, p.Workers()[0].Pid())
-	require.Equal(t, p.Workers()[0].State().CurrentState(), fsm.StateReady)
+	assert.Equal(t, p.Workers()[0].State().CurrentState(), fsm.StateReady)
 	pid = p.Workers()[0].Pid()
 
 	resp, err = p.Exec(ctx, &payload.Payload{
