@@ -136,9 +136,9 @@ func (sp *Pool) Exec(ctx context.Context, p *payload.Payload, stopCh chan struct
 		case true:
 			ctxTTL, cancel := context.WithTimeout(ctx, sp.cfg.Supervisor.ExecTTL)
 			defer cancel()
-			return sp.execDebug(ctxTTL, p)
+			return sp.execDebug(ctxTTL, p, stopCh)
 		case false:
-			return sp.execDebug(context.Background(), p)
+			return sp.execDebug(context.Background(), p, stopCh)
 		}
 	}
 
@@ -221,6 +221,7 @@ begin:
 
 	switch rsp.IsStream {
 	case true:
+		sp.log.Debug("stream mode", zap.Int64("pid", w.Pid()))
 		// in case of stream we should not return worker back immediately
 		go func() {
 			// would be called on Goexit
@@ -256,6 +257,7 @@ begin:
 
 		return resp, nil
 	case false:
+		sp.log.Debug("req-resp mode", zap.Int64("pid", w.Pid()))
 		resp <- newPExec(rsp, nil)
 		// return worker back
 		sp.ww.Release(w)
@@ -323,91 +325,3 @@ func (sp *Pool) takeWorker(ctxGetFree context.Context, op errors.Op) (*worker.Pr
 	}
 	return w, nil
 }
-
-// execDebug used when debug mode was not set and exec_ttl is 0
-func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload) (chan *PExec, error) {
-	sw, err := sp.allocator()
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		// read the exit status to prevent process to be a zombie
-		_ = sw.Wait()
-	}()
-
-	pld, err := sw.Exec(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := make(chan *PExec, 1)
-	resp <- newPExec(pld, nil)
-	// destroy the worker
-	err = sw.Stop()
-	if err != nil {
-		sp.log.Debug(
-			"debug mode: worker stopped",
-			zap.String("reason", "worker error"),
-			zap.Int64("pid", sw.Pid()),
-			zap.String("internal_event_name", events.EventWorkerError.String()),
-			zap.Error(err),
-		)
-	}
-
-	// we can skip stop error in debug mode. It's more important to send back a response
-	return resp, nil
-}
-
-/*
-Difference between recursion function call vs goto:
-
-RECURSION:
-        0x0000 00000 (main.go:15)       TEXT    "".foo(SB), ABIInternal, $24-16
-        0x0000 00000 (main.go:15)       CMPQ    SP, 16(R14)
-        0x0004 00004 (main.go:15)       JLS     57
-        0x0006 00006 (main.go:15)       SUBQ    $24, SP
-        0x000a 00010 (main.go:15)       MOVQ    BP, 16(SP)
-        0x000f 00015 (main.go:15)       LEAQ    16(SP), BP
-        0x0014 00020 (main.go:16)       CALL    "".foo2(SB)
-        0x0019 00025 (main.go:17)       TESTQ   AX, AX
-        0x001c 00028 (main.go:17)       JEQ     47
-        0x001e 00030 (main.go:18)       LEAQ    go.string."bar"(SB), AX
-        0x0025 00037 (main.go:18)       MOVL    $3, BX
-        0x002a 00042 (main.go:18)       CALL    "".foo(SB)
-        0x002f 00047 (main.go:20)       MOVQ    16(SP), BP
-        0x0034 00052 (main.go:20)       ADDQ    $24, SP
-        0x0038 00056 (main.go:20)       RET
-        0x0039 00057 (main.go:20)       NOP
-        0x0039 00057 (main.go:15)       CALL    runtime.morestack_noctxt(SB)
-        0x003e 00062 (main.go:15)       NOP
-        0x0040 00064 (main.go:15)       JMP     0
-
-GOTO:
-        0x0000 00000 (main.go:15)       TEXT    "".foo(SB), ABIInternal, $8-16
-        0x0000 00000 (main.go:15)       CMPQ    SP, 16(R14)
-        0x0004 00004 (main.go:15)       JLS     37
-        0x0006 00006 (main.go:15)       SUBQ    $8, SP
-        0x000a 00010 (main.go:15)       MOVQ    BP, (SP)
-        0x000e 00014 (main.go:15)       LEAQ    (SP), BP
-        0x0012 00018 (main.go:17)       CALL    "".foo2(SB)
-        0x0017 00023 (main.go:18)       TESTQ   AX, AX
-        0x001a 00026 (main.go:18)       JNE     18
-        0x001c 00028 (main.go:21)       MOVQ    (SP), BP
-        0x0020 00032 (main.go:21)       ADDQ    $8, SP
-        0x0024 00036 (main.go:21)       RET
-        0x0025 00037 (main.go:21)       NOP
-        0x0025 00037 (main.go:15)       CALL    runtime.morestack_noctxt(SB)
-        0x002a 00042 (main.go:15)       JMP     0
-
-The difference:
-1. Stack (24-16 vs 8-16)
-2. JNE vs Direct CALL
-3 TESTQ   AX, AX (if err != nil)
-
-So, the goto is a little bit more performant
-BenchmarkRecursion
-BenchmarkRecursion-32    	378020806	         3.185 ns/op	       0 B/op	       0 allocs/op
-BenchmarkGoTo
-BenchmarkGoTo-32         	407569994	         2.930 ns/op	       0 B/op	       0 allocs/op
-*/
