@@ -108,10 +108,11 @@ func (s *Fsm) recognizer(to int64) error {
 	// to
 	case StateInactive:
 		// from
+		// No-one can transition to Inactive
 		if atomic.LoadInt64(s.currentState) == StateDestroyed {
 			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
 		}
-	// to
+	// to from StateWorking/StateInactive only
 	case StateReady:
 		// from
 		switch atomic.LoadInt64(s.currentState) {
@@ -123,6 +124,7 @@ func (s *Fsm) recognizer(to int64) error {
 	// to
 	case StateWorking:
 		// from
+		// StateWorking can be transitioned only from StateReady
 		if atomic.LoadInt64(s.currentState) == StateReady {
 			return nil
 		}
