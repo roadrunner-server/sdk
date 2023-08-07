@@ -25,7 +25,7 @@ type Factory interface {
 }
 
 // NewPoolAllocator initializes allocator of the workers
-func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command string, log *zap.Logger) func() (*worker.Process, error) {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
 	return func() (*worker.Process, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()

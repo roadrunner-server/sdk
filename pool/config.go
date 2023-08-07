@@ -11,10 +11,10 @@ type Config struct {
 	Debug bool
 
 	// Command used to override the server command with the custom one
-	Command string `mapstructure:"command"`
+	Command []string `mapstructure:"command"`
 
 	// AfterInitCommand command used to override the server's AfterInitCommand
-	AfterInitCommand string `mapstructure:"after_init"`
+	AfterInitCommand []string `mapstructure:"after_init"`
 
 	// NumWorkers defines how many sub-processes can be run at once. This value
 	// might be doubled by Swapper while hot-swap. Defaults to number of CPU cores.

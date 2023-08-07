@@ -4,6 +4,7 @@
     "errgroup",
     "Failboot",
     "goridge",
+    "mapstructure",
     "memleak",
     "nolint",
     "pexec",
