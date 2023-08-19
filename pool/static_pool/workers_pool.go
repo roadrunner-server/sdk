@@ -230,6 +230,9 @@ begin:
 				sp.ww.Release(w)
 			}()
 
+			// send the initial frame
+			resp <- newPExec(rsp, nil)
+
 			// stream iterator
 			for {
 				select {
@@ -241,14 +244,15 @@ begin:
 					}
 					runtime.Goexit()
 				default:
-					pld, next, err := w.StreamIter()
-					if err != nil {
-						resp <- newPExec(nil, err) // exit from the goroutine
+					pld, next, errI := w.StreamIter()
+					if errI != nil {
+						resp <- newPExec(nil, errI) // exit from the goroutine
 						runtime.Goexit()
 					}
 
 					resp <- newPExec(pld, nil)
 					if !next {
+						// we've got the last frame
 						runtime.Goexit()
 					}
 				}
