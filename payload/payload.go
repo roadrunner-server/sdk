@@ -1,7 +1,7 @@
 package payload
 
 import (
-	"github.com/roadrunner-server/sdk/v4/utils"
+	"unsafe"
 )
 
 // Payload carries binary header and body to stack and
@@ -11,13 +11,17 @@ type Payload struct {
 	Context []byte
 	// body contains binary payload to be processed by WorkerProcess.
 	Body []byte
-	// Type of codec used to decode/encode payload
+	// Type of codec used to decode/encode payload.
 	Codec byte
-	// IsStream indicates that payload is stream
-	IsStream bool
+	// Flags
+	Flags byte
 }
 
 // String returns payload body as string
 func (p *Payload) String() string {
-	return utils.AsString(p.Body)
+	if len(p.Body) == 0 {
+		return ""
+	}
+
+	return unsafe.String(unsafe.SliceData(p.Body), len(p.Body))
 }

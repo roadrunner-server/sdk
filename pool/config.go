@@ -9,33 +9,27 @@ import (
 type Config struct {
 	// Debug flag creates new fresh worker before every request.
 	Debug bool
-
 	// Command used to override the server command with the custom one
 	Command []string `mapstructure:"command"`
-
 	// AfterInitCommand command used to override the server's AfterInitCommand
 	AfterInitCommand []string `mapstructure:"after_init"`
-
 	// NumWorkers defines how many sub-processes can be run at once. This value
 	// might be doubled by Swapper while hot-swap. Defaults to number of CPU cores.
 	NumWorkers uint64 `mapstructure:"num_workers"`
-
 	// MaxJobs defines how many executions is allowed for the worker until
 	// its destruction. set 1 to create new process for each new task, 0 to let
 	// worker handle as many tasks as it can.
 	MaxJobs uint64 `mapstructure:"max_jobs"`
-
 	// AllocateTimeout defines for how long pool will be waiting for a worker to
 	// be freed to handle the task. Defaults to 60s.
 	AllocateTimeout time.Duration `mapstructure:"allocate_timeout"`
-
 	// DestroyTimeout defines for how long pool should be waiting for worker to
 	// properly destroy, if timeout reached worker will be killed. Defaults to 60s.
 	DestroyTimeout time.Duration `mapstructure:"destroy_timeout"`
-
 	// ResetTimeout defines how long pool should wait before start killing workers
 	ResetTimeout time.Duration `mapstructure:"reset_timeout"`
-
+	// Stream read operation timeout
+	StreamTimeout time.Duration `mapstructure:"stream_timeout"`
 	// Supervision config to limit worker and pool memory usage.
 	Supervisor *SupervisorConfig `mapstructure:"supervisor"`
 }
@@ -48,6 +42,10 @@ func (cfg *Config) InitDefaults() {
 
 	if cfg.AllocateTimeout == 0 {
 		cfg.AllocateTimeout = time.Minute
+	}
+
+	if cfg.StreamTimeout == 0 {
+		cfg.StreamTimeout = time.Minute
 	}
 
 	if cfg.DestroyTimeout == 0 {

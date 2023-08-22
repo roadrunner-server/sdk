@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
+	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/sdk/v4/events"
 	"github.com/roadrunner-server/sdk/v4/fsm"
 	"github.com/roadrunner-server/sdk/v4/payload"
@@ -219,8 +220,8 @@ begin:
 	// create channel for the stream (only if there are no errors)
 	resp := make(chan *PExec, 1)
 
-	switch rsp.IsStream {
-	case true:
+	switch {
+	case rsp.Flags&frame.STREAM != 0:
 		sp.log.Debug("stream mode", zap.Int64("pid", w.Pid()))
 		// in case of stream we should not return worker back immediately
 		go func() {
@@ -238,10 +239,14 @@ begin:
 				select {
 				// we received stop signal
 				case <-stopCh:
-					err = w.StreamCancel()
+					ctxT, cancelT := context.WithTimeout(ctx, sp.cfg.StreamTimeout)
+					err = w.StreamCancel(ctxT)
 					if err != nil {
 						sp.log.Warn("stream cancel error", zap.Error(err))
+						w.State().Transition(fsm.StateInvalid)
 					}
+
+					cancelT()
 					runtime.Goexit()
 				default:
 					pld, next, errI := w.StreamIter()
@@ -260,7 +265,7 @@ begin:
 		}()
 
 		return resp, nil
-	case false:
+	default:
 		sp.log.Debug("req-resp mode", zap.Int64("pid", w.Pid()))
 		resp <- newPExec(rsp, nil)
 		// return worker back
@@ -268,8 +273,6 @@ begin:
 		// close the channel
 		close(resp)
 		return resp, nil
-	default:
-		panic("workers_pool unreachable!")
 	}
 }
 

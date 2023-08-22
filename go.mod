@@ -6,10 +6,10 @@ toolchain go1.21.0
 
 require (
 	github.com/goccy/go-json v0.10.2
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/roadrunner-server/errors v1.3.0
-	github.com/roadrunner-server/goridge/v3 v3.7.0
+	github.com/roadrunner-server/goridge/v3 v3.8.0
 	github.com/roadrunner-server/tcplisten v1.4.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.4

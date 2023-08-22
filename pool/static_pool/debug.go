@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/sdk/v4/events"
 	"github.com/roadrunner-server/sdk/v4/payload"
 	"go.uber.org/zap"
@@ -30,8 +31,8 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 	// create channel for the stream (only if there are no errors)
 	resp := make(chan *PExec, 1)
 
-	switch rsp.IsStream {
-	case true:
+	switch {
+	case rsp.Flags&frame.STREAM != 0:
 		// in case of stream we should not return worker back immediately
 		go func() {
 			// would be called on Goexit
@@ -55,7 +56,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 				select {
 				// we received stop signal
 				case <-stopCh:
-					err = w.StreamCancel()
+					err = w.StreamCancel(ctx)
 					if err != nil {
 						sp.log.Warn("stream cancel error", zap.Error(err))
 					}
@@ -76,14 +77,12 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 		}()
 
 		return resp, nil
-	case false:
+	default:
 		resp <- newPExec(rsp, nil)
 		// return worker back
 		sp.ww.Release(w)
 		// close the channel
 		close(resp)
 		return resp, nil
-	default:
-		panic("workers_pool unreachable!")
 	}
 }
