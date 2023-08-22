@@ -221,12 +221,34 @@ func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 		return nil, false, err
 	}
 
-	return pld, pld.IsStream, nil
+	// PING, we should respond with PONG
+	if pld.Flags&frame.PING != 0 {
+		// get a frame
+		fr := w.getFrame()
+
+		fr.WriteVersion(fr.Header(), frame.Version1)
+
+		fr.SetPongBit(fr.Header())
+		fr.WriteCRC(fr.Header())
+
+		err := w.Relay().Send(fr)
+		w.State().RegisterExec()
+		if err != nil {
+			w.putFrame(fr)
+			w.State().Transition(fsm.StateErrored)
+			return nil, false, errors.E(errors.Network, err)
+		}
+
+		w.putFrame(fr)
+	}
+
+	return pld, pld.Flags&frame.STREAM == 0, nil
 }
 
 // StreamCancel sends stop bit to the worker
-func (w *Process) StreamCancel() error {
+func (w *Process) StreamCancel(ctx context.Context) error {
 	const op = errors.Op("sync_worker_send_frame")
+
 	// get a frame
 	fr := w.getFrame()
 
@@ -244,7 +266,27 @@ func (w *Process) StreamCancel() error {
 	}
 
 	w.putFrame(fr)
-	return nil
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.E(op, errors.TimeOut, ctx.Err())
+		default:
+			rsp, err := w.receiveFrame()
+			if err != nil {
+				return err
+			}
+
+			// stream has ended
+			if rsp.Flags&frame.STREAM == 0 {
+				w.State().Transition(fsm.StateReady)
+				return nil
+			}
+
+			// trash
+			rsp = nil
+		}
+	}
 }
 
 type wexec struct {
@@ -470,9 +512,9 @@ func (w *Process) receiveFrame() (*payload.Payload, error) {
 		return nil, errors.E(op, errors.Network, errors.Str("nil frame received"))
 	}
 
-	flags := frameR.ReadFlags()
+	codec := frameR.ReadFlags()
 
-	if flags&frame.ERROR != byte(0) {
+	if codec&frame.ERROR != byte(0) {
 		// we need to copy the payload because we will put the frame back to the pool
 		cp := make([]byte, len(frameR.Payload()))
 		copy(cp, frameR.Payload())
@@ -497,12 +539,14 @@ func (w *Process) receiveFrame() (*payload.Payload, error) {
 		return nil, errors.E(errors.Network, errors.Errorf("bad payload %s", cp))
 	}
 
-	isStream := frameR.IsStream(frameR.Header())
+	// stream + stop -> waste
+	// stream + ping -> response
+	flags := frameR.Header()[10]
 	pld := &payload.Payload{
-		IsStream: isStream,
-		Codec:    flags,
-		Body:     make([]byte, len(frameR.Payload()[options[0]:])),
-		Context:  make([]byte, len(frameR.Payload()[:options[0]])),
+		Flags:   flags,
+		Codec:   codec,
+		Body:    make([]byte, len(frameR.Payload()[options[0]:])),
+		Context: make([]byte, len(frameR.Payload()[:options[0]])),
 	}
 
 	// by copying we free frame's payload slice

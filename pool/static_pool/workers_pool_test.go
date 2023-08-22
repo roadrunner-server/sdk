@@ -10,13 +10,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v4/fsm"
 	"github.com/roadrunner-server/sdk/v4/ipc/pipe"
 	"github.com/roadrunner-server/sdk/v4/payload"
 	"github.com/roadrunner-server/sdk/v4/pool"
-	"github.com/roadrunner-server/sdk/v4/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -950,7 +950,7 @@ func BenchmarkToStringUnsafe(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		res := utils.AsString(testPayload)
+		res := unsafe.String(unsafe.SliceData(testPayload), len(testPayload))
 		_ = res
 	}
 }
