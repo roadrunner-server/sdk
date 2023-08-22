@@ -242,7 +242,8 @@ func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 		w.putFrame(fr)
 	}
 
-	return pld, pld.Flags&frame.STREAM == 0, nil
+	// !=0 -> we have stream bit set, so stream is available
+	return pld, pld.Flags&frame.STREAM != 0, nil
 }
 
 // StreamCancel sends stop bit to the worker
