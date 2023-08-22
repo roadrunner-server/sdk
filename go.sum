@@ -38,8 +38,8 @@ github.com/prometheus/procfs v0.11.1 h1:xRC8Iq1yyca5ypa9n1EZnWZkt7dwcoRPQwX/5gwa
 github.com/prometheus/procfs v0.11.1/go.mod h1:eesXgaPo1q7lBpVMoMy0ZOFTth9hBn4W/y0/p/ScXhY=
 github.com/roadrunner-server/errors v1.3.0 h1:kLVXpXne0jMReN7pj8KIhyYyjqKjsPC5DRGqMsd4/Fo=
 github.com/roadrunner-server/errors v1.3.0/go.mod h1:XYVuhXvxi3yQaP/zCLB6QRZ0JvQIRaBa0SKFHL4WLKg=
-github.com/roadrunner-server/goridge/v3 v3.7.0 h1:+Z8pezA4vvZ+/LpF7tjmwOYHa9jKrjbGtBn7RpRAswI=
-github.com/roadrunner-server/goridge/v3 v3.7.0/go.mod h1:xgheswRjWvQBHRf3AEkFgLnYOSzYg13ZH0OCuDIcJpg=
+github.com/roadrunner-server/goridge/v3 v3.8.0 h1:V4EmDs6KfvV+F9ilh4LhmqZy76JGozdDH/S/1v2G2AA=
+github.com/roadrunner-server/goridge/v3 v3.8.0/go.mod h1:L5UkNzD8aKLz6TzpqmmiHOJ6EnsadsWEYNoqK/4qoK0=
 github.com/roadrunner-server/tcplisten v1.4.0 h1:yWo09zktv/CSV6VywLfw4pwNcUchgTiIrW4uIICtO5M=
 github.com/roadrunner-server/tcplisten v1.4.0/go.mod h1:A6+VSnW2ETGnN/e/CMdP63ZXqQDaC0UDMU6QmyuB0yM=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
