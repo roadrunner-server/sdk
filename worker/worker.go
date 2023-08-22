@@ -250,6 +250,7 @@ func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 func (w *Process) StreamCancel(ctx context.Context) error {
 	const op = errors.Op("sync_worker_send_frame")
 
+	w.log.Debug("stream was canceled, sending stop bit", zap.Int64("pid", w.Pid()))
 	// get a frame
 	fr := w.getFrame()
 
@@ -267,26 +268,48 @@ func (w *Process) StreamCancel(ctx context.Context) error {
 	}
 
 	w.putFrame(fr)
+	c := w.getCh()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return errors.E(op, errors.TimeOut, ctx.Err())
-		default:
-			rsp, err := w.receiveFrame()
-			if err != nil {
-				return err
+	w.log.Debug("stop bit was sent, waiting for the response", zap.Int64("pid", w.Pid()))
+
+	go func() {
+		for {
+			rsp, errrf := w.receiveFrame()
+			if errrf != nil {
+				c <- &wexec{
+					err: errrf,
+				}
+
+				w.log.Debug("stream cancel error", zap.Int64("pid", w.Pid()), zap.Error(errrf))
+				runtime.Goexit()
 			}
 
 			// stream has ended
 			if rsp.Flags&frame.STREAM == 0 {
 				w.State().Transition(fsm.StateReady)
-				return nil
+				w.log.Debug("stream has ended", zap.Int64("pid", w.Pid()))
+				c <- &wexec{}
+				runtime.Goexit()
 			}
 
 			// trash
 			rsp = nil
 		}
+	}()
+
+	select {
+	// exec TTL reached
+	case <-ctx.Done():
+		w.putCh(c)
+		return errors.E(op, errors.TimeOut, ctx.Err())
+	case res := <-c:
+		if res.err != nil {
+			w.putCh(c)
+			return res.err
+		}
+
+		w.putCh(c)
+		return nil
 	}
 }
 
