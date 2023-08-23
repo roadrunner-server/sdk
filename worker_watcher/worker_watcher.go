@@ -10,7 +10,6 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v4/events"
 	"github.com/roadrunner-server/sdk/v4/fsm"
-	"github.com/roadrunner-server/sdk/v4/utils"
 	"github.com/roadrunner-server/sdk/v4/worker"
 	"github.com/roadrunner-server/sdk/v4/worker_watcher/container/channel"
 	"go.uber.org/zap"
@@ -44,7 +43,7 @@ func NewSyncWorkerWatcher(allocator Allocator, log *zap.Logger, numWorkers uint6
 		log:      log,
 		eventBus: eb,
 		// pass a ptr to the number of workers to avoid blocking in the TTL loop
-		numWorkers:      utils.Uint64(numWorkers),
+		numWorkers:      toPtr(numWorkers),
 		allocateTimeout: allocateTimeout,
 		//workers:         make([]*worker.Process, 0, numWorkers),
 		workers: make(map[int64]*worker.Process, numWorkers),
@@ -418,4 +417,8 @@ func (ww *WorkerWatcher) addToWatch(wb *worker.Process) {
 	go func() {
 		ww.wait(wb)
 	}()
+}
+
+func toPtr[T any](t T) *T {
+	return &t
 }
