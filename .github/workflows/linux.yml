@@ -42,7 +42,7 @@ jobs:
           extensions: sockets
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get Composer Cache Directory
         id: composer-cache
