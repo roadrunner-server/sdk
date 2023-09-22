@@ -151,6 +151,31 @@ func Test_SupervisedPool_NilConfig(t *testing.T) {
 	assert.Nil(t, p)
 }
 
+func Test_SupervisedPool_RemoveNoWorkers(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := NewPool(
+		ctx,
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log()),
+		cfgSupervised,
+		log(),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
+	assert.NoError(t, err)
+
+	wrks := p.Workers()
+	for i := 0; i < len(wrks); i++ {
+		assert.NoError(t, p.RemoveWorker(ctx))
+	}
+
+	assert.Len(t, p.Workers(), 0)
+	p.Destroy(ctx)
+}
+
 func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 	ctx := context.Background()
 

@@ -183,7 +183,7 @@ func Test_StaticPool_RemoveWorker(t *testing.T) {
 	p.Destroy(ctx)
 }
 
-func Test_Poll_Reallocate(t *testing.T) {
+func Test_Pool_Reallocate(t *testing.T) {
 	var testCfg2 = &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 500,
