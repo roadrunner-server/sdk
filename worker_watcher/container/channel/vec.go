@@ -13,8 +13,6 @@ import (
 
 type Vec struct {
 	rwm sync.RWMutex
-	// container size
-	len uint64
 	// destroy signal
 	destroy uint64
 	// reset signal
@@ -23,12 +21,11 @@ type Vec struct {
 	workers chan *worker.Process
 }
 
-func NewVector(len uint64) *Vec {
+func NewVector() *Vec {
 	vec := &Vec{
-		len:     len,
 		destroy: 0,
 		reset:   0,
-		workers: make(chan *worker.Process, len),
+		workers: make(chan *worker.Process, 1000),
 	}
 
 	return vec
@@ -111,8 +108,6 @@ func (v *Vec) Push(w *worker.Process) {
 func (v *Vec) Len() int {
 	return len(v.workers)
 }
-
-func (v *Vec) Remove(_ int64) {}
 
 func (v *Vec) Pop(ctx context.Context) (*worker.Process, error) {
 	// remove all workers and return

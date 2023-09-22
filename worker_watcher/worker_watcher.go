@@ -26,6 +26,7 @@ type WorkerWatcher struct {
 	numWorkers *uint64
 	eventBus   *events.Bus
 
+	// map with the workers pointers
 	workers map[int64]*worker.Process
 
 	log *zap.Logger
@@ -38,7 +39,7 @@ type WorkerWatcher struct {
 func NewSyncWorkerWatcher(allocator Allocator, log *zap.Logger, numWorkers uint64, allocateTimeout time.Duration) *WorkerWatcher {
 	eb, _ := events.NewEventBus()
 	return &WorkerWatcher{
-		container: channel.NewVector(numWorkers),
+		container: channel.NewVector(),
 
 		log:      log,
 		eventBus: eb,
@@ -62,6 +63,40 @@ func (ww *WorkerWatcher) Watch(workers []*worker.Process) error {
 		ww.workers[workers[ii].Pid()] = workers[ii]
 		ww.addToWatch(workers[ii])
 	}
+	return nil
+}
+
+func (ww *WorkerWatcher) AddWorker() error {
+	err := ww.Allocate()
+	if err != nil {
+		return err
+	}
+
+	ww.Lock()
+	*ww.numWorkers++
+	ww.Unlock()
+	return nil
+}
+
+func (ww *WorkerWatcher) RemoveWorker(ctx context.Context) error {
+	const op = errors.Op("worker_watcher_remove_worker")
+	w, err := ww.container.Pop(ctx)
+	if err != nil {
+		if errors.Is(errors.WatcherStopped, err) {
+			return errors.E(op, errors.WatcherStopped)
+		}
+
+		return errors.E(op, err)
+	}
+	// destroy and stop
+	w.State().Transition(fsm.StateDestroyed)
+	_ = w.Stop()
+
+	ww.Lock()
+	*ww.numWorkers--
+	delete(ww.workers, w.Pid())
+	ww.Unlock()
+
 	return nil
 }
 
@@ -169,15 +204,6 @@ done:
 	// push the worker to the container
 	ww.Release(sw)
 	return nil
-}
-
-// Remove worker
-func (ww *WorkerWatcher) Remove(wb *worker.Process) {
-	ww.Lock()
-	defer ww.Unlock()
-
-	// worker will be removed on the Get operation
-	delete(ww.workers, wb.Pid())
 }
 
 // Release O(1) operation
@@ -388,7 +414,9 @@ func (ww *WorkerWatcher) wait(w *worker.Process) {
 	}
 
 	// remove worker
-	ww.Remove(w)
+	ww.Lock()
+	delete(ww.workers, w.Pid())
+	ww.Unlock()
 
 	if w.State().Compare(fsm.StateDestroyed) {
 		// worker was manually destroyed, no need to replace

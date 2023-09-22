@@ -118,10 +118,12 @@ func (sp *Pool) Workers() (workers []*worker.Process) {
 	return sp.ww.List()
 }
 
-// RemoveWorker function should not be used outside the `Wait` function
-func (sp *Pool) RemoveWorker(wb *worker.Process) error {
-	sp.ww.Remove(wb)
-	return nil
+func (sp *Pool) RemoveWorker(ctx context.Context) error {
+	return sp.ww.RemoveWorker(ctx)
+}
+
+func (sp *Pool) AddWorker() error {
+	return sp.ww.AddWorker()
 }
 
 // Exec executes provided payload on the worker

@@ -61,6 +61,39 @@ func Test_SupervisedPool_Exec(t *testing.T) {
 	cancel()
 }
 
+func Test_SupervisedPool_AddRemoveWorkers(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewPool(
+		ctx,
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/memleak.php", "pipes") },
+		pipe.NewPipeFactory(log()),
+		cfgSupervised,
+		log(),
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	time.Sleep(time.Second)
+
+	pidBefore := p.Workers()[0].Pid()
+
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Second)
+		_, err = p.Exec(ctx, &payload.Payload{
+			Context: []byte(""),
+			Body:    []byte("foo"),
+		}, make(chan struct{}))
+		require.NoError(t, err)
+	}
+
+	require.NotEqual(t, pidBefore, p.Workers()[0].Pid())
+
+	ctxNew, cancel := context.WithTimeout(ctx, time.Second)
+	p.Destroy(ctxNew)
+	cancel()
+}
+
 func Test_SupervisedPool_ImmediateDestroy(t *testing.T) {
 	ctx := context.Background()
 
@@ -136,13 +169,19 @@ func Test_SupervisedPool_RemoveWorker(t *testing.T) {
 
 	wrks := p.Workers()
 	for i := 0; i < len(wrks); i++ {
-		assert.NoError(t, p.RemoveWorker(wrks[i]))
+		assert.NoError(t, p.RemoveWorker(ctx))
 	}
+
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
+	assert.Error(t, err)
+
+	err = p.AddWorker()
+	assert.NoError(t, err)
 
 	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
 	assert.NoError(t, err)
 
-	assert.Len(t, p.Workers(), 0)
+	assert.Len(t, p.Workers(), 1)
 
 	p.Destroy(ctx)
 }
