@@ -118,10 +118,19 @@ func (sp *Pool) Workers() (workers []*worker.Process) {
 	return sp.ww.List()
 }
 
-// RemoveWorker function should not be used outside the `Wait` function
-func (sp *Pool) RemoveWorker(wb *worker.Process) error {
-	sp.ww.Remove(wb)
-	return nil
+func (sp *Pool) RemoveWorker(ctx context.Context) error {
+	var cancel context.CancelFunc
+	_, ok := ctx.Deadline()
+	if !ok {
+		ctx, cancel = context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
+		defer cancel()
+	}
+
+	return sp.ww.RemoveWorker(ctx)
+}
+
+func (sp *Pool) AddWorker() error {
+	return sp.ww.AddWorker()
 }
 
 // Exec executes provided payload on the worker
@@ -298,9 +307,9 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, sp.cfg.ResetTimeout)
 	defer cancel()
 	// reset all workers
-	sp.ww.Reset(ctx)
+	numToAllocate := sp.ww.Reset(ctx)
 	// re-allocate all workers
-	workers, err := pool.AllocateParallel(sp.cfg.NumWorkers, sp.allocator)
+	workers, err := pool.AllocateParallel(numToAllocate, sp.allocator)
 	if err != nil {
 		return err
 	}

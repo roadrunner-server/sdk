@@ -54,6 +54,47 @@ func Test_NewPool(t *testing.T) {
 	p.Destroy(ctx)
 }
 
+func Test_NewPoolAddRemoveWorkers(t *testing.T) {
+	var testCfg2 = &pool.Config{
+		NumWorkers:      1,
+		AllocateTimeout: time.Second * 500,
+		DestroyTimeout:  time.Second * 500,
+	}
+
+	ctx := context.Background()
+	p, err := NewPool(
+		ctx,
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
+		pipe.NewPipeFactory(log()),
+		testCfg2,
+		log(),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	r, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
+	resp := <-r
+
+	assert.Equal(t, []byte("hello"), resp.Body())
+	assert.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		err = p.AddWorker()
+		assert.NoError(t, err)
+	}
+
+	err = p.AddWorker()
+	assert.NoError(t, err)
+
+	err = p.RemoveWorker(ctx)
+	assert.NoError(t, err)
+
+	err = p.RemoveWorker(ctx)
+	assert.NoError(t, err)
+
+	p.Destroy(ctx)
+}
+
 func Test_StaticPool_NilFactory(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewPool(
@@ -104,11 +145,17 @@ func Test_StaticPool_ImmediateDestroy(t *testing.T) {
 func Test_StaticPool_RemoveWorker(t *testing.T) {
 	ctx := context.Background()
 
+	var testCfg2 = &pool.Config{
+		NumWorkers:      5,
+		AllocateTimeout: time.Second * 5,
+		DestroyTimeout:  time.Second * 5,
+	}
+
 	p, err := NewPool(
 		ctx,
 		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "echo", "pipes") },
 		pipe.NewPipeFactory(log()),
-		testCfg,
+		testCfg2,
 		log(),
 	)
 	assert.NoError(t, err)
@@ -119,18 +166,24 @@ func Test_StaticPool_RemoveWorker(t *testing.T) {
 
 	wrks := p.Workers()
 	for i := 0; i < len(wrks); i++ {
-		assert.NoError(t, p.RemoveWorker(wrks[i]))
+		assert.NoError(t, p.RemoveWorker(ctx))
 	}
+
+	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
+	assert.Error(t, err)
+
+	err = p.AddWorker()
+	assert.NoError(t, err)
 
 	_, err = p.Exec(ctx, &payload.Payload{Body: []byte("hello"), Context: nil}, make(chan struct{}))
 	assert.NoError(t, err)
 
-	assert.Len(t, p.Workers(), 0)
+	assert.Len(t, p.Workers(), 1)
 
 	p.Destroy(ctx)
 }
 
-func Test_Poll_Reallocate(t *testing.T) {
+func Test_Pool_Reallocate(t *testing.T) {
 	var testCfg2 = &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 500,

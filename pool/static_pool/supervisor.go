@@ -12,8 +12,8 @@ import (
 const (
 	MB = 1024 * 1024
 
-	// NSEC_IN_SEC nanoseconds in second
-	NSEC_IN_SEC int64 = 1000000000 //nolint:stylecheck
+	// NsecInSec nanoseconds in second
+	NsecInSec int64 = 1000000000
 )
 
 func (sp *Pool) Start() {
@@ -70,6 +70,9 @@ func (sp *Pool) control() {
 			if workers[i] != nil {
 				_ = workers[i].Stop()
 			}
+
+			// call cleanup callback
+			workers[i].Callback()
 
 			continue
 		}
@@ -150,7 +153,7 @@ func (sp *Pool) control() {
 
 			// convert last used to unixNano and sub time.now to seconds
 			// negative number, because lu always in the past, except for the `back to the future` :)
-			res := ((int64(lu) - now.UnixNano()) / NSEC_IN_SEC) * -1
+			res := ((int64(lu) - now.UnixNano()) / NsecInSec) * -1
 
 			// maxWorkerIdle more than diff between now and last used
 			// for example:
