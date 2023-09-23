@@ -4,17 +4,20 @@ import (
 	"sync/atomic"
 
 	"github.com/roadrunner-server/errors"
+	"go.uber.org/zap"
 )
 
 // NewFSM returns new FSM implementation based on initial state
-func NewFSM(initialState int64) *Fsm {
+func NewFSM(initialState int64, log *zap.Logger) *Fsm {
 	return &Fsm{
+		log:          log,
 		currentState: &initialState,
 	}
 }
 
 // Fsm is general https://en.wikipedia.org/wiki/Finite-state_machine to transition between worker states
 type Fsm struct {
+	log      *zap.Logger
 	numExecs uint64
 	// to be lightweight, use UnixNano
 	lastUsed     uint64
@@ -36,6 +39,7 @@ Transition moves worker from one state to another
 func (s *Fsm) Transition(to int64) {
 	err := s.recognizer(to)
 	if err != nil {
+		s.log.Debug("fsm transition error", zap.Error(err))
 		return
 	}
 
@@ -131,7 +135,16 @@ func (s *Fsm) recognizer(to int64) error {
 
 		return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))
 	// to
-	case StateInvalid, StateStopping, StateStopped, StateMaxJobsReached, StateErrored, StateIdleTTLReached, StateTTLReached, StateMaxMemoryReached, StateExecTTLReached:
+	case
+		StateInvalid,
+		StateStopping,
+		StateStopped,
+		StateMaxJobsReached,
+		StateErrored,
+		StateIdleTTLReached,
+		StateTTLReached,
+		StateMaxMemoryReached,
+		StateExecTTLReached:
 		// from
 		if atomic.LoadInt64(s.currentState) == StateDestroyed {
 			return errors.E(op, errors.Errorf("can't transition from state: %s", s.String()))

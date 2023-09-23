@@ -31,6 +31,7 @@ type Process struct {
 	created time.Time
 	log     *zap.Logger
 
+	callback func()
 	// fsm holds information about current Process state,
 	// number of Process executions, buf status change time.
 	// publicly this object is receive-only and protected using Mutex
@@ -98,7 +99,7 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 		w.log = z
 	}
 
-	w.fsm = fsm.NewFSM(fsm.StateInactive)
+	w.fsm = fsm.NewFSM(fsm.StateInactive, w.log)
 
 	// set self as stderr implementation (Writer interface)
 	rc, err := cmd.StderrPipe()
@@ -128,6 +129,17 @@ func WithLog(z *zap.Logger) Options {
 // Pid returns worker pid.
 func (w *Process) Pid() int64 {
 	return int64(w.pid)
+}
+
+func (w *Process) AddCallback(cb func()) {
+	w.callback = cb
+}
+
+func (w *Process) Callback() {
+	if w.callback == nil {
+		return
+	}
+	w.callback()
 }
 
 // Created returns time, worker was created at.

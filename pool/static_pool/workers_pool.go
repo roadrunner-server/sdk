@@ -119,6 +119,13 @@ func (sp *Pool) Workers() (workers []*worker.Process) {
 }
 
 func (sp *Pool) RemoveWorker(ctx context.Context) error {
+	var cancel context.CancelFunc
+	_, ok := ctx.Deadline()
+	if !ok {
+		ctx, cancel = context.WithTimeout(ctx, sp.cfg.DestroyTimeout)
+		defer cancel()
+	}
+
 	return sp.ww.RemoveWorker(ctx)
 }
 
@@ -300,9 +307,9 @@ func (sp *Pool) Reset(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, sp.cfg.ResetTimeout)
 	defer cancel()
 	// reset all workers
-	sp.ww.Reset(ctx)
+	numToAllocate := sp.ww.Reset(ctx)
 	// re-allocate all workers
-	workers, err := pool.AllocateParallel(sp.cfg.NumWorkers, sp.allocator)
+	workers, err := pool.AllocateParallel(numToAllocate, sp.allocator)
 	if err != nil {
 		return err
 	}
