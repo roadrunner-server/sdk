@@ -562,6 +562,49 @@ func Test_StaticPool_Replace_Worker(t *testing.T) {
 	p.Destroy(context.Background())
 }
 
+func Test_StaticPool_DebugAddRemove(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewPool(
+		ctx,
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "pid", "pipes") },
+		pipe.NewPipeFactory(log()),
+		&pool.Config{
+			Debug:           true,
+			AllocateTimeout: time.Second,
+			DestroyTimeout:  time.Second,
+		},
+		log(),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	// prevent process is not ready
+	time.Sleep(time.Second)
+	assert.Len(t, p.Workers(), 0)
+
+	var lastPID string
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+	assert.NoError(t, err)
+
+	res := <-re
+
+	assert.NotEqual(t, lastPID, string(res.Body()))
+
+	assert.Len(t, p.Workers(), 0)
+
+	err = p.AddWorker()
+	assert.NoError(t, err)
+
+	assert.Len(t, p.Workers(), 0)
+
+	ctxT, cancel := context.WithTimeout(ctx, time.Microsecond)
+	err = p.RemoveWorker(ctxT)
+	cancel()
+	assert.NoError(t, err)
+
+	p.Destroy(context.Background())
+}
+
 func Test_StaticPool_Debug_Worker(t *testing.T) {
 	ctx := context.Background()
 	p, err := NewPool(
