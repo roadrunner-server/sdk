@@ -119,6 +119,10 @@ func (sp *Pool) Workers() (workers []*worker.Process) {
 }
 
 func (sp *Pool) RemoveWorker(ctx context.Context) error {
+	if sp.cfg.Debug {
+		sp.log.Warn("remove worker operation is not allowed in debug mode")
+		return nil
+	}
 	var cancel context.CancelFunc
 	_, ok := ctx.Deadline()
 	if !ok {
@@ -130,6 +134,10 @@ func (sp *Pool) RemoveWorker(ctx context.Context) error {
 }
 
 func (sp *Pool) AddWorker() error {
+	if sp.cfg.Debug {
+		sp.log.Warn("add worker operation is not allowed in debug mode")
+		return nil
+	}
 	return sp.ww.AddWorker()
 }
 

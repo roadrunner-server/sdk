@@ -75,11 +75,6 @@ func (ww *WorkerWatcher) AddWorker() error {
 }
 
 func (ww *WorkerWatcher) RemoveWorker(ctx context.Context) error {
-	// we can't remove worker if there are no workers :)
-	if ww.container.Len() == 0 {
-		return nil
-	}
-
 	w, err := ww.Take(ctx)
 	if err != nil {
 		return err
