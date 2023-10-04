@@ -439,6 +439,7 @@ func (w *Process) Stop() error {
 	// If we successfully sent a stop request, Wait() method will send a struct{} to the doneCh and we're done here
 	// otherwise we have 10 seconds before we kill the process
 	case <-w.doneCh:
+		w.log.Debug("worker stopped", zap.Int("pid", w.pid))
 		return nil
 	case <-time.After(time.Second * 10):
 		// kill process
