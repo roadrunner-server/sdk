@@ -39,7 +39,7 @@ type Pool struct {
 	mu             sync.RWMutex
 }
 
-// NewPool creates new worker pool and task multiplexer. Pool will initiate with one worker. If supervisor configuration is provided -> pool will be turned into a supervisedExec mode
+// NewPool creates a new worker pool and task multiplexer. Pool will initiate with one worker. If supervisor configuration is provided -> pool will be turned into a supervisedExec mode
 func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *pool.Config, log *zap.Logger, options ...Options) (*Pool, error) {
 	if factory == nil {
 		return nil, errors.Str("no factory initialized")

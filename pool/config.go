@@ -11,8 +11,6 @@ type Config struct {
 	Debug bool
 	// Command used to override the server command with the custom one
 	Command []string `mapstructure:"command"`
-	// AfterInitCommand command used to override the server's AfterInitCommand
-	AfterInitCommand []string `mapstructure:"after_init"`
 	// NumWorkers defines how many sub-processes can be run at once. This value
 	// might be doubled by Swapper while hot-swap. Defaults to number of CPU cores.
 	NumWorkers uint64 `mapstructure:"num_workers"`
@@ -66,10 +64,10 @@ type SupervisorConfig struct {
 	// WatchTick defines how often to check the state of worker.
 	WatchTick time.Duration `mapstructure:"watch_tick"`
 
-	// TTL defines maximum time for the worker is allowed to live.
+	// TTL defines the maximum time for the worker is allowed to live.
 	TTL time.Duration `mapstructure:"ttl"`
 
-	// IdleTTL defines maximum duration worker can spend in idle mode. Disabled when 0.
+	// IdleTTL defines the maximum duration worker can spend in idle mode. Disabled when 0.
 	IdleTTL time.Duration `mapstructure:"idle_ttl"`
 
 	// ExecTTL defines maximum lifetime per job.
