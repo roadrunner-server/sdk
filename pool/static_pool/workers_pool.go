@@ -215,8 +215,8 @@ begin:
 		case errors.Is(errors.Network, err):
 			// in case of network error, we can't stop the worker, we should kill it
 			w.State().Transition(fsm.StateErrored)
-			sp.log.Warn("network error", zap.String("reason", "network"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
-			// kill the worker instead of sending net packet to it
+			sp.log.Warn("RoadRunner can't communicate with the worker", zap.String("reason", "worker hung or process was killed"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerError.String()), zap.Error(err))
+			// kill the worker instead of sending a net packet to it
 			_ = w.Kill()
 
 			return nil, err
