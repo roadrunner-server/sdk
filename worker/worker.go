@@ -349,7 +349,6 @@ func (w *Process) StreamCancel(ctx context.Context) error {
 				rsp = nil
 				runtime.Goexit()
 			}
-
 		}
 	}()
 

@@ -329,7 +329,8 @@ func sendResponse(resp chan *PExec, pld *payload.Payload, err error) {
 	select {
 	case resp <- newPExec(pld, err):
 	default:
-		break
+		panic("can't send response to the channel")
+		// break
 	}
 }
 
