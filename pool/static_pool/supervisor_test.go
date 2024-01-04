@@ -54,6 +54,7 @@ func Test_SupervisedPool_Exec(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	time.Sleep(time.Second)
 	require.NotEqual(t, pidBefore, p.Workers()[0].Pid())
 
 	ctxNew, cancel := context.WithTimeout(ctx, time.Second)
@@ -87,6 +88,7 @@ func Test_SupervisedPool_AddRemoveWorkers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	time.Sleep(time.Second)
 	require.NotEqual(t, pidBefore, p.Workers()[0].Pid())
 
 	ctxNew, cancel := context.WithTimeout(ctx, time.Second)

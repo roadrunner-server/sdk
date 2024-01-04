@@ -57,6 +57,12 @@ type Process struct {
 	relay relay.Relay
 }
 
+// internal struct to pass data between goroutines
+type wexec struct {
+	payload *payload.Payload
+	err     error
+}
+
 // InitBaseWorker creates new Process over given exec.cmd.
 func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	if cmd.Process != nil {
@@ -226,7 +232,6 @@ func (w *Process) Wait() error {
 	return err
 }
 
-// StreamIter returns true if stream is available and payload
 func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 	pld, err := w.receiveFrame()
 	if err != nil {
@@ -235,32 +240,74 @@ func (w *Process) StreamIter() (*payload.Payload, bool, error) {
 
 	// PING, we should respond with PONG
 	if pld.Flags&frame.PING != 0 {
-		// get a frame
-		fr := w.getFrame()
-
-		fr.WriteVersion(fr.Header(), frame.Version1)
-
-		fr.SetPongBit(fr.Header())
-		fr.WriteCRC(fr.Header())
-
-		err := w.Relay().Send(fr)
-		w.State().RegisterExec()
-		if err != nil {
-			w.putFrame(fr)
-			w.State().Transition(fsm.StateErrored)
-			return nil, false, errors.E(errors.Network, err)
+		if err := w.sendPONG(); err != nil {
+			return nil, false, err
 		}
-
-		w.putFrame(fr)
 	}
 
 	// !=0 -> we have stream bit set, so stream is available
 	return pld, pld.Flags&frame.STREAM != 0, nil
 }
 
+// StreamIter returns true if stream is available and payload
+func (w *Process) StreamIterWithContext(ctx context.Context) (*payload.Payload, bool, error) {
+	c := w.getCh()
+
+	go func() {
+		rsp, err := w.receiveFrame()
+		if err != nil {
+			c <- &wexec{
+				err: err,
+			}
+
+			w.log.Debug("stream iter error", zap.Int64("pid", w.Pid()), zap.Error(err))
+			// trash response
+			rsp = nil
+			runtime.Goexit()
+		}
+
+		c <- &wexec{
+			payload: rsp,
+		}
+	}()
+
+	select {
+	// exec TTL reached
+	case <-ctx.Done():
+		// we should kill the process here to ensure that it exited
+		errK := w.Kill()
+		err := stderr.Join(errK, ctx.Err())
+		// we should wait for the exit from the worker
+		// 'c' channel here should return an error or nil
+		// because the goroutine holds the payload pointer (from the sync.Pool)
+		<-c
+		w.putCh(c)
+		return nil, false, errors.E(errors.ExecTTL, err)
+	case res := <-c:
+		w.putCh(c)
+
+		if res.err != nil {
+			return nil, false, res.err
+		}
+
+		// PING, we should respond with PONG
+		if res.payload.Flags&frame.PING != 0 {
+			if err := w.sendPONG(); err != nil {
+				return nil, false, err
+			}
+		}
+
+		// pld.Flags&frame.STREAM !=0 -> we have stream bit set, so stream is available
+		return res.payload, res.payload.Flags&frame.STREAM != 0, nil
+	}
+}
+
 // StreamCancel sends stop bit to the worker
 func (w *Process) StreamCancel(ctx context.Context) error {
 	const op = errors.Op("sync_worker_send_frame")
+	if !w.State().Compare(fsm.StateWorking) {
+		return errors.Errorf("worker is not in the Working state, actual state: (%s)", w.State().String())
+	}
 
 	w.log.Debug("stream was canceled, sending stop bit", zap.Int64("pid", w.Pid()))
 	// get a frame
@@ -275,7 +322,6 @@ func (w *Process) StreamCancel(ctx context.Context) error {
 	w.State().RegisterExec()
 	if err != nil {
 		w.putFrame(fr)
-		w.State().Transition(fsm.StateErrored)
 		return errors.E(op, errors.Network, err)
 	}
 
@@ -293,54 +339,52 @@ func (w *Process) StreamCancel(ctx context.Context) error {
 				}
 
 				w.log.Debug("stream cancel error", zap.Int64("pid", w.Pid()), zap.Error(errrf))
+				// trash response
+				rsp = nil
 				runtime.Goexit()
 			}
 
 			// stream has ended
 			if rsp.Flags&frame.STREAM == 0 {
-				w.State().Transition(fsm.StateReady)
 				w.log.Debug("stream has ended", zap.Int64("pid", w.Pid()))
 				c <- &wexec{}
+				// trash response
+				rsp = nil
 				runtime.Goexit()
 			}
-
-			// trash
-			rsp = nil
 		}
 	}()
 
 	select {
 	// exec TTL reached
 	case <-ctx.Done():
+		errK := w.Kill()
+		err := stderr.Join(errK, ctx.Err())
+		// we should wait for the exit from the worker
+		// 'c' channel here should return an error or nil
+		// because the goroutine holds the payload pointer (from the sync.Pool)
+		<-c
 		w.putCh(c)
-		return errors.E(op, errors.TimeOut, ctx.Err())
+		return errors.E(op, errors.ExecTTL, err)
 	case res := <-c:
+		w.putCh(c)
 		if res.err != nil {
-			w.putCh(c)
 			return res.err
 		}
-
-		w.putCh(c)
 		return nil
 	}
-}
-
-type wexec struct {
-	payload *payload.Payload
-	err     error
 }
 
 // Exec executes payload with TTL timeout in the context.
 func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("worker_exec_with_timeout")
 
-	c := w.getCh()
-
 	// worker was killed before it started to work (supervisor)
 	if !w.State().Compare(fsm.StateReady) {
-		w.putCh(c)
 		return nil, errors.E(op, errors.Retry, errors.Errorf("Process is not ready (%s)", w.State().String()))
 	}
+
+	c := w.getCh()
 	// set last used time
 	w.State().SetLastUsed(uint64(time.Now().UnixNano()))
 	w.State().Transition(fsm.StateWorking)
@@ -358,40 +402,15 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 		rsp, err := w.receiveFrame()
 		if err != nil {
 			c <- &wexec{
-				err: err,
-			}
-
-			/*
-				in case of soft job error, we should not kill the worker, this is just an error payload from the worker.
-			*/
-			if errors.Is(errors.SoftJob, err) {
-				// check if the supervisor changed the state
-				if w.State().Compare(fsm.StateWorking) {
-					w.State().Transition(fsm.StateReady)
-				}
-				runtime.Goexit()
-			}
-
-			w.State().Transition(fsm.StateErrored)
-			runtime.Goexit()
-		}
-
-		// double check the state, should be `working`
-		// if not, supervisor might change the state (TTL)
-		if !w.State().Compare(fsm.StateWorking) {
-			c <- &wexec{
 				payload: rsp,
-				err:     nil,
+				err:     err,
 			}
 
 			runtime.Goexit()
 		}
-
-		w.State().Transition(fsm.StateReady)
 
 		c <- &wexec{
 			payload: rsp,
-			err:     nil,
 		}
 	}()
 
@@ -399,24 +418,18 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 	// exec TTL reached
 	case <-ctx.Done():
 		errK := w.Kill()
-		err := stderr.Join(errK)
+		err := stderr.Join(errK, ctx.Err())
 		// we should wait for the exit from the worker
 		// 'c' channel here should return an error or nil
 		// because the goroutine holds the payload pointer (from the sync.Pool)
 		<-c
-		if err != nil {
-			w.putCh(c)
-			// append timeout error
-			return nil, stderr.Join(err, ctx.Err(), errors.E(op, errors.ExecTTL))
-		}
 		w.putCh(c)
-		return nil, errors.E(op, errors.ExecTTL, ctx.Err())
+		return nil, errors.E(op, errors.ExecTTL, err)
 	case res := <-c:
+		w.putCh(c)
 		if res.err != nil {
-			w.putCh(c)
 			return nil, res.err
 		}
-		w.putCh(c)
 		return res.payload, nil
 	}
 }
@@ -594,6 +607,26 @@ func (w *Process) receiveFrame() (*payload.Payload, error) {
 
 	w.putFrame(frameR)
 	return pld, nil
+}
+
+func (w *Process) sendPONG() error {
+	// get a frame
+	fr := w.getFrame()
+	fr.WriteVersion(fr.Header(), frame.Version1)
+
+	fr.SetPongBit(fr.Header())
+	fr.WriteCRC(fr.Header())
+
+	err := w.Relay().Send(fr)
+	w.State().RegisterExec()
+	if err != nil {
+		w.putFrame(fr)
+		w.State().Transition(fsm.StateErrored)
+		return errors.E(errors.Network, err)
+	}
+
+	w.putFrame(fr)
+	return nil
 }
 
 func (w *Process) closeRelay() error {

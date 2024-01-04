@@ -31,7 +31,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 	}
 
 	// create a channel for the stream (only if there are no errors)
-	resp := make(chan *PExec, 1)
+	resp := make(chan *PExec, 1000000)
 
 	switch {
 	case rsp.Flags&frame.STREAM != 0:
@@ -71,9 +71,9 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 					cancelT()
 					runtime.Goexit()
 				default:
-					pld, next, errI := w.StreamIter()
+					pld, next, errI := w.StreamIterWithContext(ctx)
 					if errI != nil {
-						resp <- newPExec(nil, errI) // exit from the goroutine
+						resp <- newPExec(nil, errI)
 						runtime.Goexit()
 					}
 
