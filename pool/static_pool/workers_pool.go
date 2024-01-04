@@ -194,19 +194,14 @@ begin:
 	}
 
 	if err != nil {
-		if errors.Is(errors.Retry, err) {
-			sp.ww.Release(w)
-			goto begin
-		}
-
 		// just push event if on any stage was timeout error
 		switch {
-		// for this case, worker already killed in the ExecTTL function
 		case errors.Is(errors.ExecTTL, err):
+			// for this case, worker already killed in the ExecTTL function
 			sp.log.Warn("worker stopped, and will be restarted", zap.String("reason", "execTTL timeout elapsed"), zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventExecTTL.String()), zap.Error(err))
 			w.State().Transition(fsm.StateExecTTLReached)
-			sp.ww.Release(w)
 
+			// worker should already be reallocated
 			return nil, err
 		case errors.Is(errors.SoftJob, err):
 			/*
@@ -224,19 +219,27 @@ begin:
 			// kill the worker instead of sending a net packet to it
 			_ = w.Kill()
 
+			// do not return it, should be reallocated on Kill
 			return nil, err
+		case errors.Is(errors.Retry, err):
+			// put the worker back to the stack and retry the request with the new one
+			sp.ww.Release(w)
+			goto begin
+
 		default:
 			w.State().Transition(fsm.StateErrored)
 			sp.log.Warn("worker will be restarted", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerDestruct.String()), zap.Error(err))
 
+			sp.ww.Release(w)
 			return nil, err
 		}
 	}
 
 	// create channel for the stream (only if there are no errors)
-	resp := make(chan *PExec, 100)
+	// we need to create a buffered channel to prevent blocking
+	resp := make(chan *PExec, 100000000)
 	// send the initial frame
-	sendResponse(resp, rsp, nil)
+	resp <- newPExec(rsp, nil)
 
 	switch {
 	case rsp.Flags&frame.STREAM != 0:
@@ -274,35 +277,59 @@ begin:
 					switch sp.supervisedExec {
 					case true:
 						ctxT, cancelT := context.WithTimeout(context.Background(), sp.cfg.Supervisor.ExecTTL)
-						pld, next, errI := w.StreamIter(ctxT)
+						pld, next, errI := w.StreamIterWithContext(ctxT)
 						cancelT()
 						if errI != nil {
-							sp.log.Warn("stream iter error", zap.Error(err))
+							sp.log.Warn("stream error", zap.Error(err))
 							// send error response
-							sendResponse(resp, nil, errI)
+							select {
+							case resp <- newPExec(nil, errI):
+							default:
+								sp.log.Error("failed to send error", zap.Error(errI))
+							}
 							// move worker to the invalid state to restart
 							w.State().Transition(fsm.StateInvalid)
 							runtime.Goexit()
 						}
 
-						sendResponse(resp, pld, nil)
+						select {
+						case resp <- newPExec(pld, nil):
+						default:
+							sp.log.Error("failed to send payload chunk, stream is corrupted")
+							// we need to restart the worker since it can be in the incorrect state
+							w.State().Transition(fsm.StateErrored)
+						}
+
 						if !next {
 							w.State().Transition(fsm.StateReady)
 							// we've got the last frame
 							runtime.Goexit()
 						}
 					case false:
-						pld, next, errI := w.StreamIter(context.Background())
+						// non supervised execution, can potentially hang here
+						pld, next, errI := w.StreamIter()
 						if errI != nil {
 							sp.log.Warn("stream iter error", zap.Error(err))
 							// send error response
-							sendResponse(resp, nil, errI)
+							select {
+							case resp <- newPExec(nil, errI):
+							default:
+								sp.log.Error("failed to send error", zap.Error(errI))
+							}
+
 							// move worker to the invalid state to restart
 							w.State().Transition(fsm.StateInvalid)
 							runtime.Goexit()
 						}
 
-						sendResponse(resp, pld, nil)
+						select {
+						case resp <- newPExec(pld, nil):
+						default:
+							sp.log.Error("failed to send payload chunk, stream is corrupted")
+							// we need to restart the worker since it can be in the incorrect state
+							w.State().Transition(fsm.StateErrored)
+						}
+
 						if !next {
 							w.State().Transition(fsm.StateReady)
 							// we've got the last frame
@@ -316,21 +343,14 @@ begin:
 		return resp, nil
 	default:
 		sp.log.Debug("req-resp mode", zap.Int64("pid", w.Pid()))
+		if w.State().Compare(fsm.StateWorking) {
+			w.State().Transition(fsm.StateReady)
+		}
 		// return worker back
 		sp.ww.Release(w)
 		// close the channel
 		close(resp)
 		return resp, nil
-	}
-}
-
-// this is a wrapper to send response safely
-func sendResponse(resp chan *PExec, pld *payload.Payload, err error) {
-	select {
-	case resp <- newPExec(pld, err):
-	default:
-		panic("can't send response to the channel")
-		// break
 	}
 }
 

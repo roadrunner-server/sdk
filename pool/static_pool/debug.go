@@ -31,7 +31,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 	}
 
 	// create a channel for the stream (only if there are no errors)
-	resp := make(chan *PExec, 1)
+	resp := make(chan *PExec, 1000000)
 
 	switch {
 	case rsp.Flags&frame.STREAM != 0:
@@ -54,7 +54,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 			}()
 
 			// send the initial frame
-			sendResponse(resp, rsp, nil)
+			resp <- newPExec(rsp, nil)
 
 			// stream iterator
 			for {
@@ -71,13 +71,13 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 					cancelT()
 					runtime.Goexit()
 				default:
-					pld, next, errI := w.StreamIter(ctx)
+					pld, next, errI := w.StreamIterWithContext(ctx)
 					if errI != nil {
-						sendResponse(resp, nil, errI)
+						resp <- newPExec(nil, errI)
 						runtime.Goexit()
 					}
 
-					sendResponse(resp, pld, nil)
+					resp <- newPExec(pld, nil)
 					if !next {
 						// we've got the last frame
 						runtime.Goexit()
@@ -88,7 +88,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 
 		return resp, nil
 	default:
-		sendResponse(resp, rsp, nil)
+		resp <- newPExec(rsp, nil)
 		// close the channel
 		close(resp)
 

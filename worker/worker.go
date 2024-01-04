@@ -57,6 +57,12 @@ type Process struct {
 	relay relay.Relay
 }
 
+// internal struct to pass data between goroutines
+type wexec struct {
+	payload *payload.Payload
+	err     error
+}
+
 // InitBaseWorker creates new Process over given exec.cmd.
 func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	if cmd.Process != nil {
@@ -226,8 +232,25 @@ func (w *Process) Wait() error {
 	return err
 }
 
+func (w *Process) StreamIter() (*payload.Payload, bool, error) {
+	pld, err := w.receiveFrame()
+	if err != nil {
+		return nil, false, err
+	}
+
+	// PING, we should respond with PONG
+	if pld.Flags&frame.PING != 0 {
+		if err := w.sendPONG(); err != nil {
+			return nil, false, err
+		}
+	}
+
+	// !=0 -> we have stream bit set, so stream is available
+	return pld, pld.Flags&frame.STREAM != 0, nil
+}
+
 // StreamIter returns true if stream is available and payload
-func (w *Process) StreamIter(ctx context.Context) (*payload.Payload, bool, error) {
+func (w *Process) StreamIterWithContext(ctx context.Context) (*payload.Payload, bool, error) {
 	c := w.getCh()
 
 	go func() {
@@ -277,26 +300,6 @@ func (w *Process) StreamIter(ctx context.Context) (*payload.Payload, bool, error
 		// pld.Flags&frame.STREAM !=0 -> we have stream bit set, so stream is available
 		return res.payload, res.payload.Flags&frame.STREAM != 0, nil
 	}
-}
-
-func (w *Process) sendPONG() error {
-	// get a frame
-	fr := w.getFrame()
-	fr.WriteVersion(fr.Header(), frame.Version1)
-
-	fr.SetPongBit(fr.Header())
-	fr.WriteCRC(fr.Header())
-
-	err := w.Relay().Send(fr)
-	w.State().RegisterExec()
-	if err != nil {
-		w.putFrame(fr)
-		w.State().Transition(fsm.StateErrored)
-		return errors.E(errors.Network, err)
-	}
-
-	w.putFrame(fr)
-	return nil
 }
 
 // StreamCancel sends stop bit to the worker
@@ -372,11 +375,6 @@ func (w *Process) StreamCancel(ctx context.Context) error {
 	}
 }
 
-type wexec struct {
-	payload *payload.Payload
-	err     error
-}
-
 // Exec executes payload with TTL timeout in the context.
 func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payload, error) {
 	const op = errors.Op("worker_exec_with_timeout")
@@ -400,8 +398,8 @@ func (w *Process) Exec(ctx context.Context, p *payload.Payload) (*payload.Payloa
 			runtime.Goexit()
 		}
 
-		rsp, err := w.receiveFrame()
 		w.State().RegisterExec()
+		rsp, err := w.receiveFrame()
 		if err != nil {
 			c <- &wexec{
 				payload: rsp,
@@ -609,6 +607,26 @@ func (w *Process) receiveFrame() (*payload.Payload, error) {
 
 	w.putFrame(frameR)
 	return pld, nil
+}
+
+func (w *Process) sendPONG() error {
+	// get a frame
+	fr := w.getFrame()
+	fr.WriteVersion(fr.Header(), frame.Version1)
+
+	fr.SetPongBit(fr.Header())
+	fr.WriteCRC(fr.Header())
+
+	err := w.Relay().Send(fr)
+	w.State().RegisterExec()
+	if err != nil {
+		w.putFrame(fr)
+		w.State().Transition(fsm.StateErrored)
+		return errors.E(errors.Network, err)
+	}
+
+	w.putFrame(fr)
+	return nil
 }
 
 func (w *Process) closeRelay() error {
