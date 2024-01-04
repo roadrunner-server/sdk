@@ -54,7 +54,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 			}()
 
 			// send the initial frame
-			resp <- newPExec(rsp, nil)
+			sendResponse(resp, rsp, nil)
 
 			// stream iterator
 			for {
@@ -71,13 +71,13 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 					cancelT()
 					runtime.Goexit()
 				default:
-					pld, next, errI := w.StreamIter()
+					pld, next, errI := w.StreamIter(ctx)
 					if errI != nil {
-						resp <- newPExec(nil, errI) // exit from the goroutine
+						sendResponse(resp, nil, errI)
 						runtime.Goexit()
 					}
 
-					resp <- newPExec(pld, nil)
+					sendResponse(resp, pld, nil)
 					if !next {
 						// we've got the last frame
 						runtime.Goexit()
@@ -88,7 +88,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 
 		return resp, nil
 	default:
-		resp <- newPExec(rsp, nil)
+		sendResponse(resp, rsp, nil)
 		// close the channel
 		close(resp)
 
