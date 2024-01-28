@@ -2,11 +2,11 @@ module github.com/roadrunner-server/sdk/v4
 
 go 1.21
 
-toolchain go1.22rc1
+toolchain go1.21.6
 
 require (
 	github.com/goccy/go-json v0.10.2
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/roadrunner-server/errors v1.3.0
 	github.com/roadrunner-server/goridge/v3 v3.8.1
@@ -28,7 +28,7 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.13 // indirect
 	github.com/tklauser/numcpus v0.7.0 // indirect
-	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect
