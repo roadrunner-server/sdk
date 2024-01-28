@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
@@ -15,6 +16,11 @@ import (
 	"github.com/roadrunner-server/sdk/v4/worker"
 	workerWatcher "github.com/roadrunner-server/sdk/v4/worker_watcher"
 	"go.uber.org/zap"
+)
+
+const (
+	// StopRequest can be sent by worker to indicate that restart is required.
+	StopRequest = `{"stop":true}`
 )
 
 // Pool controls worker creation, destruction and task routing. Pool uses fixed amount of stack.
@@ -233,6 +239,14 @@ begin:
 			sp.ww.Release(w)
 			return nil, err
 		}
+	}
+
+	// worker want's to be terminated
+	// unsafe is used to quickly transform []byte to string
+	if len(rsp.Body) == 0 && unsafe.String(unsafe.SliceData(rsp.Context), len(rsp.Context)) == StopRequest {
+		w.State().Transition(fsm.StateInvalid)
+		sp.ww.Release(w)
+		goto begin
 	}
 
 	switch {

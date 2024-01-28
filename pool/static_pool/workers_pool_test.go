@@ -826,6 +826,51 @@ func Test_StaticPool_NoFreeWorkers(t *testing.T) {
 	p.Destroy(ctx)
 }
 
+// identical to replace but controlled on worker side
+func Test_StaticPool_Stop_Worker(t *testing.T) {
+	ctx := context.Background()
+	p, err := NewPool(
+		ctx,
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/client.php", "stop", "pipes") },
+		pipe.NewPipeFactory(log()),
+		&pool.Config{
+			NumWorkers:      1,
+			AllocateTimeout: time.Second,
+			DestroyTimeout:  time.Second,
+		},
+		log(),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	defer p.Destroy(ctx)
+	time.Sleep(time.Second)
+
+	var lastPID string
+	lastPID = strconv.Itoa(int(p.Workers()[0].Pid()))
+
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+	assert.NoError(t, err)
+
+	res := <-re
+
+	assert.Equal(t, lastPID, string(res.Body()))
+
+	for i := 0; i < 10; i++ {
+		re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+
+		res := <-re
+
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		assert.NotNil(t, res.Body())
+		assert.Empty(t, res.Context())
+
+		assert.NotEqual(t, lastPID, string(res.Body()))
+		lastPID = string(res.Body())
+	}
+}
+
 func Test_StaticPool_QueueSize(t *testing.T) {
 	ctx := context.Background()
 
