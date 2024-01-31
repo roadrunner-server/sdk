@@ -21,7 +21,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 	}
 
 	go func() {
-		// read the exit status to prevent process to be a zombie
+		// read the exit status to prevent process to become a zombie
 		_ = w.Wait()
 	}()
 
@@ -30,15 +30,18 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 		return nil, err
 	}
 
-	// create a channel for the stream (only if there are no errors)
-	resp := make(chan *PExec, 1000000)
-
 	switch {
 	case rsp.Flags&frame.STREAM != 0:
+		// create a channel for the stream (only if there are no errors)
+		resp := make(chan *PExec, 5)
+		// send the initial frame
+		resp <- newPExec(rsp, nil)
+
 		// in case of stream, we should not return worker immediately
 		go func() {
 			// would be called on Goexit
 			defer func() {
+				sp.log.Debug("stopping [stream] worker", zap.Int("pid", int(w.Pid())), zap.String("state", w.State().String()))
 				close(resp)
 				// destroy the worker
 				errD := w.Stop()
@@ -53,34 +56,69 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 				}
 			}()
 
-			// send the initial frame
-			resp <- newPExec(rsp, nil)
-
 			// stream iterator
 			for {
 				select {
 				// we received stop signal
 				case <-stopCh:
+					sp.log.Debug("stream stop signal received", zap.Int("pid", int(w.Pid())), zap.String("state", w.State().String()))
 					ctxT, cancelT := context.WithTimeout(ctx, sp.cfg.StreamTimeout)
 					err = w.StreamCancel(ctxT)
+					cancelT()
 					if err != nil {
+						w.State().Transition(fsm.StateErrored)
 						sp.log.Warn("stream cancel error", zap.Error(err))
-						w.State().Transition(fsm.StateInvalid)
+					} else {
+						// successfully canceled
+						w.State().Transition(fsm.StateReady)
+						sp.log.Debug("transition to the ready state", zap.String("from", w.State().String()))
 					}
 
-					cancelT()
 					runtime.Goexit()
 				default:
-					pld, next, errI := w.StreamIterWithContext(ctx)
-					if errI != nil {
-						resp <- newPExec(nil, errI)
-						runtime.Goexit()
-					}
+					// we have to set a stream timeout on every request
+					switch sp.supervisedExec {
+					case true:
+						ctxT, cancelT := context.WithTimeout(context.Background(), sp.cfg.Supervisor.ExecTTL)
+						pld, next, errI := w.StreamIterWithContext(ctxT)
+						cancelT()
+						if errI != nil {
+							sp.log.Warn("stream error", zap.Error(err))
 
-					resp <- newPExec(pld, nil)
-					if !next {
-						// we've got the last frame
-						runtime.Goexit()
+							resp <- newPExec(nil, errI)
+
+							// move worker to the invalid state to restart
+							w.State().Transition(fsm.StateInvalid)
+							runtime.Goexit()
+						}
+
+						resp <- newPExec(pld, nil)
+
+						if !next {
+							w.State().Transition(fsm.StateReady)
+							// we've got the last frame
+							runtime.Goexit()
+						}
+					case false:
+						// non supervised execution, can potentially hang here
+						pld, next, errI := w.StreamIter()
+						if errI != nil {
+							sp.log.Warn("stream iter error", zap.Error(err))
+							// send error response
+							resp <- newPExec(nil, errI)
+
+							// move worker to the invalid state to restart
+							w.State().Transition(fsm.StateInvalid)
+							runtime.Goexit()
+						}
+
+						resp <- newPExec(pld, nil)
+
+						if !next {
+							w.State().Transition(fsm.StateReady)
+							// we've got the last frame
+							runtime.Goexit()
+						}
 					}
 				}
 			}
@@ -88,6 +126,7 @@ func (sp *Pool) execDebug(ctx context.Context, p *payload.Payload, stopCh chan s
 
 		return resp, nil
 	default:
+		resp := make(chan *PExec, 1)
 		resp <- newPExec(rsp, nil)
 		// close the channel
 		close(resp)
