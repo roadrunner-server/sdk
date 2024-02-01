@@ -11,6 +11,8 @@ type Config struct {
 	Debug bool
 	// Command used to override the server command with the custom one
 	Command []string `mapstructure:"command"`
+	// MaxQueueSize is maximum allowed queue size with the pending requests to the workers poll
+	MaxQueueSize uint64 `mapstructure:"max_queue_size"`
 	// NumWorkers defines how many sub-processes can be run at once. This value
 	// might be doubled by Swapper while hot-swap. Defaults to number of CPU cores.
 	NumWorkers uint64 `mapstructure:"num_workers"`
@@ -63,16 +65,12 @@ func (cfg *Config) InitDefaults() {
 type SupervisorConfig struct {
 	// WatchTick defines how often to check the state of worker.
 	WatchTick time.Duration `mapstructure:"watch_tick"`
-
 	// TTL defines the maximum time for the worker is allowed to live.
 	TTL time.Duration `mapstructure:"ttl"`
-
 	// IdleTTL defines the maximum duration worker can spend in idle mode. Disabled when 0.
 	IdleTTL time.Duration `mapstructure:"idle_ttl"`
-
 	// ExecTTL defines maximum lifetime per job.
 	ExecTTL time.Duration `mapstructure:"exec_ttl"`
-
 	// MaxWorkerMemory limits memory per worker.
 	MaxWorkerMemory uint64 `mapstructure:"max_worker_memory"`
 }

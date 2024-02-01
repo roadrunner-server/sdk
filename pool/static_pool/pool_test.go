@@ -55,7 +55,7 @@ func Test_NewPool(t *testing.T) {
 }
 
 func Test_NewPoolAddRemoveWorkers(t *testing.T) {
-	var testCfg2 = &pool.Config{
+	testCfg2 := &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 500,
 		DestroyTimeout:  time.Second * 500,
@@ -145,7 +145,7 @@ func Test_StaticPool_ImmediateDestroy(t *testing.T) {
 func Test_StaticPool_RemoveWorker(t *testing.T) {
 	ctx := context.Background()
 
-	var testCfg2 = &pool.Config{
+	testCfg2 := &pool.Config{
 		NumWorkers:      5,
 		AllocateTimeout: time.Second * 5,
 		DestroyTimeout:  time.Second * 5,
@@ -184,7 +184,7 @@ func Test_StaticPool_RemoveWorker(t *testing.T) {
 }
 
 func Test_Pool_Reallocate(t *testing.T) {
-	var testCfg2 = &pool.Config{
+	testCfg2 := &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 500,
 		DestroyTimeout:  time.Second * 500,
@@ -230,7 +230,7 @@ func Test_Pool_Reallocate(t *testing.T) {
 func Test_NewPoolReset(t *testing.T) {
 	ctx := context.Background()
 
-	var testCfg2 = &pool.Config{
+	testCfg2 := &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 500,
 		DestroyTimeout:  time.Second * 500,
@@ -316,6 +316,59 @@ func Test_ConfigNoErrorInitDefaults(t *testing.T) {
 	assert.NotNil(t, p)
 	assert.NoError(t, err)
 	p.Destroy(context.Background())
+}
+
+func Test_StaticPool_QueueSizeLimit(t *testing.T) {
+	testCfg2 := &pool.Config{
+		NumWorkers:      1,
+		AllocateTimeout: time.Second * 500,
+		DestroyTimeout:  time.Second * 500,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
+	defer cancel()
+
+	p, err := NewPool(
+		ctx,
+		// sleep for 10 seconds
+		func(cmd []string) *exec.Cmd { return exec.Command("php", "../../tests/sleep-ttl.php") },
+		pipe.NewPipeFactory(log()),
+		testCfg2,
+		log(),
+		WithQueueSize(1),
+	)
+	require.NoError(t, err)
+
+	defer p.Destroy(ctx)
+
+	assert.NotNil(t, p)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		time.Sleep(time.Second * 2)
+		_, err1 := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+		require.Error(t, err1)
+		wg.Done()
+	}()
+	go func() {
+		time.Sleep(time.Second * 2)
+		_, err2 := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+		require.Error(t, err2)
+		wg.Done()
+	}()
+
+	re, err := p.Exec(ctx, &payload.Payload{Body: []byte("hello")}, make(chan struct{}))
+	res := <-re
+
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.NotNil(t, res.Body())
+	assert.Empty(t, res.Context())
+
+	assert.Equal(t, "hello world", res.Payload().String())
+	wg.Wait()
+
+	p.Destroy(ctx)
 }
 
 func Test_StaticPool_Echo(t *testing.T) {
@@ -452,7 +505,7 @@ func Test_StaticPool_Broken_Replace(t *testing.T) {
 func Test_StaticPool_Broken_FromOutside(t *testing.T) {
 	ctx := context.Background()
 
-	var cfg2 = &pool.Config{
+	cfg2 := &pool.Config{
 		NumWorkers:      1,
 		AllocateTimeout: time.Second * 5,
 		DestroyTimeout:  time.Second * 5,
@@ -1086,7 +1139,9 @@ func Benchmark_Pool_Echo_Replaced(b *testing.B) {
 // BenchmarkToStringUnsafe-12    	566317729	         1.91 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkToStringUnsafe-32    	1000000000	         0.4434 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkToStringUnsafe(b *testing.B) {
-	testPayload := []byte("falsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtoj")
+	testPayload := []byte(
+		"falsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtoj",
+	)
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -1099,7 +1154,9 @@ func BenchmarkToStringUnsafe(b *testing.B) {
 // BenchmarkToStringSafe-32    	 8017846	       182.5 ns/op	     896 B/op	       1 allocs/op
 // inline BenchmarkToStringSafe-12    	28926276	        46.6 ns/op	     128 B/op	       1 allocs/op
 func BenchmarkToStringSafe(b *testing.B) {
-	testPayload := []byte("falsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtoj")
+	testPayload := []byte(
+		"falsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtojfalsflasjlifjwpoihejfoiwejow{}{}{}{}jelfjasjfhwaopiehjtopwhtgohrgouahsgkljasdlfjasl;fjals;jdflkndgouwhetopwqhjtoj",
+	)
 
 	b.ResetTimer()
 	b.ReportAllocs()
