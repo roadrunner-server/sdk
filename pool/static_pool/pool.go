@@ -38,7 +38,8 @@ type Pool struct {
 	// allocate new worker
 	allocator func() (*worker.Process, error)
 	// exec queue size
-	queue uint64
+	queue        uint64
+	maxQueueSize uint64
 	// used in the supervised mode
 	supervisedExec bool
 	stopCh         chan struct{}
@@ -61,6 +62,7 @@ func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *p
 	if cfg.Debug {
 		cfg.NumWorkers = 0
 		cfg.MaxJobs = 1
+		cfg.MaxQueueSize = 0
 	}
 
 	p := &Pool{
@@ -153,6 +155,11 @@ func (sp *Pool) Exec(ctx context.Context, p *payload.Payload, stopCh chan struct
 
 	if len(p.Body) == 0 && len(p.Context) == 0 {
 		return nil, errors.E(op, errors.Str("payload can not be empty"))
+	}
+
+	// check if we have space to put the request
+	if atomic.LoadUint64(&sp.maxQueueSize) != 0 && atomic.LoadUint64(&sp.queue) >= atomic.LoadUint64(&sp.maxQueueSize) {
+		return nil, errors.E(op, errors.QueueSize, errors.Str("max queue size reached"))
 	}
 
 	if sp.cfg.Debug {

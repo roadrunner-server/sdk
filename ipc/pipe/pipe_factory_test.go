@@ -84,7 +84,8 @@ func Test_Pipe_StartError(t *testing.T) {
 		t.Errorf("error running the command: error %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	w, err := NewPipeFactory(log).SpawnWorkerWithTimeout(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)

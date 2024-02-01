@@ -11,3 +11,9 @@ func WithLogger(z *zap.Logger) Options {
 		p.log = z
 	}
 }
+
+func WithQueueSize(l uint64) Options {
+	return func(p *Pool) {
+		p.maxQueueSize = l
+	}
+}
