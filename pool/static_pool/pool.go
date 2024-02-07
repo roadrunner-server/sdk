@@ -87,7 +87,7 @@ func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *p
 	}
 
 	// set up workers allocator
-	p.allocator = pool.NewPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd, p.cfg.Command, p.log)
+	p.allocator = pool.NewPoolAllocator(ctx, p.cfg, factory, cmd, p.log)
 	// set up workers watcher
 	p.ww = workerWatcher.NewSyncWorkerWatcher(p.allocator, p.log, p.cfg.NumWorkers, p.cfg.AllocateTimeout)
 
@@ -201,7 +201,7 @@ begin:
 		rsp, err = w.Exec(context.Background(), p)
 	}
 
-	if sp.cfg.MaxJobs != 0 && w.State().NumExecs() >= sp.cfg.MaxJobs {
+	if sp.cfg.MaxJobs != 0 && w.MaxJobsReached() {
 		sp.log.Debug("max requests reached", zap.Int64("pid", w.Pid()))
 		w.State().Transition(fsm.StateMaxJobsReached)
 	}

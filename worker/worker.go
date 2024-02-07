@@ -31,6 +31,8 @@ type Process struct {
 	created time.Time
 	log     *zap.Logger
 
+	maxExecs uint64
+
 	callback func()
 	// fsm holds information about current Process state,
 	// number of Process executions, buf status change time.
@@ -480,6 +482,14 @@ func (w *Process) Write(p []byte) (int, error) {
 	// unsafe to use utils.AsString
 	w.log.Info(string(p))
 	return len(p), nil
+}
+
+func (w *Process) SetMaxExecs(maxExecs uint64) {
+	w.maxExecs = maxExecs
+}
+
+func (w *Process) MaxJobsReached() bool {
+	return w.State().NumExecs() >= w.maxExecs
 }
 
 // copyBuffer is the actual implementation of Copy and CopyBuffer.
