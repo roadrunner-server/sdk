@@ -2,9 +2,8 @@ package pool
 
 import (
 	"context"
-	"math"
-	"math/rand"
 	"os/exec"
+	"time"
 
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v4/events"
@@ -26,12 +25,12 @@ type Factory interface {
 }
 
 // NewPoolAllocator initializes allocator of the workers
-func NewPoolAllocator(ctx context.Context, cfg *Config, factory Factory, cmd Command, log *zap.Logger) func() (*worker.Process, error) {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
 	return func() (*worker.Process, error) {
-		ctxT, cancel := context.WithTimeout(ctx, cfg.AllocateTimeout)
+		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(cfg.Command))
+		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(command))
 		if err != nil {
 			// context deadline
 			if errors.Is(errors.TimeOut, err) {
@@ -39,9 +38,6 @@ func NewPoolAllocator(ctx context.Context, cfg *Config, factory Factory, cmd Com
 			}
 			return nil, err
 		}
-
-		// should be in factory.SpawnWorkerWithTimeout, but this method is missing cfg parameter
-		w.SetMaxExecs(calculateMaxExecs(cfg.MaxJobs, cfg.MaxJobsDispersion))
 
 		// wrap sync worker
 		log.Debug("worker is allocated", zap.Int64("pid", w.Pid()), zap.String("internal_event_name", events.EventWorkerConstruct.String()))
@@ -86,18 +82,4 @@ func AllocateParallel(numWorkers uint64, allocator func() (*worker.Process, erro
 	}
 
 	return workers, nil
-}
-
-// https://github.com/Baldinof/roadrunner-bundle/blob/ed13b632c5c916d81a217d68dec2c7daf81b2631/src/Reboot/MaxJobsRebootStrategy.php#L14
-func calculateMaxExecs(maxJobs uint64, dispersion float64) uint64 {
-	minJobs := maxJobs - uint64(math.Round(float64(maxJobs)*dispersion)) // (:
-
-	return randomBetween(minJobs, maxJobs)
-}
-
-func randomBetween(min, max uint64) uint64 {
-	rnd := rand.Uint64()
-	rnd %= max - min
-	rnd += min
-	return rnd
 }

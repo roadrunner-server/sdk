@@ -33,10 +33,12 @@ type sr struct {
 
 // SpawnWorkerWithTimeout creates new Process and connects it to goridge relay,
 // method Wait() must be handled on level above.
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context /* w *worker.Process */, cmd *exec.Cmd /* options? maxJobs/execs here? */) (*worker.Process, error) {
 	spCh := make(chan sr)
 	go func() {
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
+
+		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log), worker.WithMaxExecs(777)) // (maxExecs +- jitter) must be already computed
 		if err != nil {
 			select {
 			case spCh <- sr{
@@ -141,6 +143,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 }
 
 func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
+	//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
 	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 	if err != nil {
 		return nil, err

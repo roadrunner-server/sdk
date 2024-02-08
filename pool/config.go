@@ -21,7 +21,7 @@ type Config struct {
 	// worker handle as many tasks as it can.
 	MaxJobs uint64 `mapstructure:"max_jobs"`
 	// TODO Comment
-	MaxJobsDispersion float64 `mapstructure:"max_jobs_dispersion"`
+	MaxJobsJitter bool `mapstructure:"max_jobs_jitter"`
 	// AllocateTimeout defines for how long pool will be waiting for a worker to
 	// be freed to handle the task. Defaults to 60s.
 	AllocateTimeout time.Duration `mapstructure:"allocate_timeout"`
@@ -56,10 +56,6 @@ func (cfg *Config) InitDefaults() {
 
 	if cfg.ResetTimeout == 0 {
 		cfg.ResetTimeout = time.Minute
-	}
-
-	if cfg.MaxJobsDispersion <= 0.0 || cfg.MaxJobsDispersion > 1.0 {
-		cfg.MaxJobsDispersion = 1.0
 	}
 
 	if cfg.Supervisor == nil {

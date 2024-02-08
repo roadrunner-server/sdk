@@ -201,7 +201,7 @@ begin:
 		rsp, err = w.Exec(context.Background(), p)
 	}
 
-	if sp.cfg.MaxJobs != 0 && w.MaxJobsReached() {
+	if sp.cfg.MaxJobs != 0 && w.State().NumExecs() >= sp.cfg.MaxJobs {
 		sp.log.Debug("max requests reached", zap.Int64("pid", w.Pid()))
 		w.State().Transition(fsm.StateMaxJobsReached)
 	}

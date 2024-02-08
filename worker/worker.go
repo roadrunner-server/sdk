@@ -31,6 +31,7 @@ type Process struct {
 	created time.Time
 	log     *zap.Logger
 
+	// maxJobs per process is here?
 	maxExecs uint64
 
 	callback func()
@@ -131,6 +132,12 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 func WithLog(z *zap.Logger) Options {
 	return func(p *Process) {
 		p.log = z
+	}
+}
+
+func WithMaxExecs(maxExecs uint64) Options {
+	return func(p *Process) {
+		p.maxExecs = maxExecs
 	}
 }
 

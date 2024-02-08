@@ -91,6 +91,7 @@ type socketSpawn struct {
 func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
 	c := make(chan socketSpawn)
 	go func() {
+		//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
 		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 		if err != nil {
 			select {
@@ -161,6 +162,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 }
 
 func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
+	//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
 	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 	if err != nil {
 		return nil, err
