@@ -88,11 +88,11 @@ type socketSpawn struct {
 }
 
 // SpawnWorkerWithTimeout creates Process and connects it to appropriate relay or return an error
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
 	c := make(chan socketSpawn)
 	go func() {
 		//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		w, err := worker.InitBaseWorker(cmd, options...)
 		if err != nil {
 			select {
 			case c <- socketSpawn{
@@ -159,38 +159,6 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 
 		return res.w, nil
 	}
-}
-
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
-	if err != nil {
-		return nil, err
-	}
-
-	err = w.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	rl, err := f.findRelay(w)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	w.AttachRelay(rl)
-
-	// errors bundle
-	_, err = internal.Pid(rl)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	w.State().Transition(fsm.StateReady)
-
-	return w, nil
 }
 
 // Close socket factory and underlying socket connection.

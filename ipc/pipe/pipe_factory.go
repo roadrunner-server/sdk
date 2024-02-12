@@ -22,6 +22,7 @@ type Factory struct {
 // listening
 func NewPipeFactory(log *zap.Logger) *Factory {
 	return &Factory{
+		// useless logger?
 		log: log,
 	}
 }
@@ -33,12 +34,12 @@ type sr struct {
 
 // SpawnWorkerWithTimeout creates new Process and connects it to goridge relay,
 // method Wait() must be handled on level above.
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context /* w *worker.Process */, cmd *exec.Cmd /* options? maxJobs/execs here? */) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
 	spCh := make(chan sr)
 	go func() {
 		//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
 
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log), worker.WithMaxExecs(777)) // (maxExecs +- jitter) must be already computed
+		w, err := worker.InitBaseWorker(cmd, options...) // (maxExecs +- jitter) must be already computed
 		if err != nil {
 			select {
 			case spCh <- sr{
@@ -140,45 +141,6 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context /* w *worker.Proces
 		}
 		return res.w, nil
 	}
-}
-
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
-	if err != nil {
-		return nil, err
-	}
-
-	in, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	// Init new PIPE relay
-	relay := pipe.NewPipeRelay(in, out)
-	w.AttachRelay(relay)
-
-	// Start the worker
-	err = w.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	// errors bundle
-	_, err = internal.Pid(relay)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	// everything ok, set ready state
-	w.State().Transition(fsm.StateReady)
-	return w, nil
 }
 
 // Close the factory.

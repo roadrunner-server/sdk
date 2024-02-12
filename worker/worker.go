@@ -23,8 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type Options func(p *Process)
-
 // Process - supervised process with api over goridge.Relay.
 type Process struct {
 	// created indicates at what time Process has been created.
@@ -127,18 +125,6 @@ func InitBaseWorker(cmd *exec.Cmd, options ...Options) (*Process, error) {
 	}()
 
 	return w, nil
-}
-
-func WithLog(z *zap.Logger) Options {
-	return func(p *Process) {
-		p.log = z
-	}
-}
-
-func WithMaxExecs(maxExecs uint64) Options {
-	return func(p *Process) {
-		p.maxExecs = maxExecs
-	}
 }
 
 // Pid returns worker pid.
@@ -489,6 +475,10 @@ func (w *Process) Write(p []byte) (int, error) {
 	// unsafe to use utils.AsString
 	w.log.Info(string(p))
 	return len(p), nil
+}
+
+func (w *Process) MaxExecsReached() bool {
+	return w.maxExecs > 0 && w.State().NumExecs() >= w.maxExecs
 }
 
 // copyBuffer is the actual implementation of Copy and CopyBuffer.
