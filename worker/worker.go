@@ -491,14 +491,6 @@ func (w *Process) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (w *Process) SetMaxExecs(maxExecs uint64) {
-	w.maxExecs = maxExecs
-}
-
-func (w *Process) MaxJobsReached() bool {
-	return w.State().NumExecs() >= w.maxExecs
-}
-
 // copyBuffer is the actual implementation of Copy and CopyBuffer.
 func copyBuffer(dst io.Writer, src io.Reader, buf []byte) error {
 	for {
