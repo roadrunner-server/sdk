@@ -10,7 +10,6 @@ import (
 // NewFSM returns new FSM implementation based on initial state
 func NewFSM(initialState int64, log *zap.Logger) *Fsm {
 	return &Fsm{
-		// maxJobs per process is here?
 		log:          log,
 		currentState: &initialState,
 	}

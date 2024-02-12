@@ -87,8 +87,8 @@ type socketSpawn struct {
 	err error
 }
 
-// SpawnWorkerWithTimeout creates Process and connects it to appropriate relay or return an error
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
+// SpawnWorker creates Process and connects it to appropriate relay or return an error
+func (f *Factory) SpawnWorker(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
 	c := make(chan socketSpawn)
 	go func() {
 		w, err := worker.InitBaseWorker(cmd, options...)
