@@ -29,7 +29,7 @@ type Process struct {
 	created time.Time
 	log     *zap.Logger
 
-	// maxJobs per process is here?
+	// calculated maximum value with jitter
 	maxExecs uint64
 
 	callback func()
