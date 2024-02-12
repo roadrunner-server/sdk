@@ -19,6 +19,7 @@ type Factory interface {
 	SpawnWorkerWithTimeout(context.Context, *exec.Cmd) (*worker.Process, error)
 	// SpawnWorker creates a new WorkerProcess process based on given command.
 	// Process must not be started.
+	// TODO No usages. Maybe delete?
 	SpawnWorker(*exec.Cmd) (*worker.Process, error)
 	// Close the factory and underlying connections.
 	Close() error

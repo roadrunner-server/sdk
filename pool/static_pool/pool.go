@@ -87,7 +87,7 @@ func NewPool(ctx context.Context, cmd pool.Command, factory pool.Factory, cfg *p
 	}
 
 	// set up workers allocator
-	p.allocator = pool.NewPoolAllocator(ctx, p.cfg, factory, cmd, p.log)
+	p.allocator = pool.NewPoolAllocator(ctx, p.cfg.AllocateTimeout, factory, cmd, cfg.Command, p.log)
 	// set up workers watcher
 	p.ww = workerWatcher.NewSyncWorkerWatcher(p.allocator, p.log, p.cfg.NumWorkers, p.cfg.AllocateTimeout)
 
