@@ -36,7 +36,7 @@ type sr struct {
 func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context /* w *worker.Process */, cmd *exec.Cmd /* options? maxJobs/execs here? */) (*worker.Process, error) {
 	spCh := make(chan sr)
 	go func() {
-		//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
+		//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
 
 		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log), worker.WithMaxExecs(777)) // (maxExecs +- jitter) must be already computed
 		if err != nil {
@@ -143,7 +143,7 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context /* w *worker.Proces
 }
 
 func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	//  worker.InitBaseWorker repeated 4 times, mayne we should divide worker creation and worker spawn?
+	//  worker.InitBaseWorker repeated 4 times, maybe we should divide worker creating and worker spawning?
 	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
 	if err != nil {
 		return nil, err
