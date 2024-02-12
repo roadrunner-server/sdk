@@ -22,7 +22,6 @@ type Factory struct {
 // listening
 func NewPipeFactory(log *zap.Logger) *Factory {
 	return &Factory{
-		// useless logger?
 		log: log,
 	}
 }
