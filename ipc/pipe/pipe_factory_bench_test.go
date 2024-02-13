@@ -16,7 +16,7 @@ func Benchmark_WorkerPipeTTL(b *testing.B) {
 	ctx := context.Background()
 
 	log, _ = zap.NewDevelopment()
-	w, err := NewPipeFactory(log).SpawnWorker(ctx, cmd)
+	w, err := NewPipeFactory(log).SpawnWorkerWithContext(ctx, cmd)
 	require.NoError(b, err)
 
 	go func() {
