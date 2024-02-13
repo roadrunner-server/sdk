@@ -202,7 +202,7 @@ begin:
 	}
 
 	if w.MaxExecsReached() {
-		sp.log.Debug("max execs reached", zap.Int64("pid", w.Pid()))
+		sp.log.Debug("maximum execs reached, worker will be restarted", zap.Int64("pid", w.Pid()), zap.Uint64("execs", w.State().NumExecs()))
 		w.State().Transition(fsm.StateMaxJobsReached)
 	}
 

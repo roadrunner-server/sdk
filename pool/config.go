@@ -20,8 +20,6 @@ type Config struct {
 	// its destruction. set 1 to create new process for each new task, 0 to let
 	// worker handle as many tasks as it can.
 	MaxJobs uint64 `mapstructure:"max_jobs"`
-	// TODO Comment
-	MaxJobsJitter bool `mapstructure:"max_jobs_jitter"`
 	// AllocateTimeout defines for how long pool will be waiting for a worker to
 	// be freed to handle the task. Defaults to 60s.
 	AllocateTimeout time.Duration `mapstructure:"allocate_timeout"`
