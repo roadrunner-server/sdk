@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	MaxExecsPercentJitter uint64 = 15
+	maxExecsPercentJitter uint64 = 15
 )
 
 type Options func(p *Process)
@@ -19,7 +19,7 @@ func WithLog(z *zap.Logger) Options {
 
 func WithMaxExecs(maxExecs uint64) Options {
 	return func(p *Process) {
-		p.maxExecs = calculateMaxExecsJitter(maxExecs, MaxExecsPercentJitter)
+		p.maxExecs = calculateMaxExecsJitter(maxExecs, maxExecsPercentJitter)
 	}
 }
 
