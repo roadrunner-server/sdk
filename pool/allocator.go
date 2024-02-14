@@ -22,12 +22,12 @@ type Factory interface {
 }
 
 // NewPoolAllocator initializes allocator of the workers
-func NewPoolAllocator(ctx context.Context, timeout time.Duration, maxJobs uint64, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, maxExecs uint64, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
 	return func() (*worker.Process, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		w, err := factory.SpawnWorkerWithContext(ctxT, cmd(command), worker.WithLog(log), worker.WithMaxExecs(maxJobs))
+		w, err := factory.SpawnWorkerWithContext(ctxT, cmd(command), worker.WithLog(log), worker.WithMaxExecs(maxExecs))
 		if err != nil {
 			// context deadline
 			if errors.Is(errors.TimeOut, err) {
