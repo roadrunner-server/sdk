@@ -189,7 +189,7 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (
 	}
 }
 
-func (f *Factory) findRelay(w *worker.Process) (*socket.Relay, error) {
+func (f *Factory) findRelay(w *worker.Process) (*socket.Relay, error) { //nolint:unused
 	const op = errors.Op("factory_find_relay")
 	// poll every 1ms for the relay
 	pollDone := time.NewTimer(f.tout)

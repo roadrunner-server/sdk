@@ -1,8 +1,9 @@
 package worker
 
 import (
-	"go.uber.org/zap"
 	"math/rand"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -28,7 +29,7 @@ func calculateMaxExecsJitter(maxExecs, jitter uint64) uint64 {
 		return 0
 	}
 
-	percent := rand.Intn(int(jitter))
+	percent := rand.Intn(int(jitter)) //nolint:gosec
 
 	if percent == 0 {
 		return maxExecs
