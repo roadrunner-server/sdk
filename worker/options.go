@@ -21,11 +21,11 @@ func WithLog(z *zap.Logger) Options {
 
 func WithMaxExecs(maxExecs uint64) Options {
 	return func(p *Process) {
-		p.maxExecs = calculateMaxExecsJitter(maxExecs, maxExecsPercentJitter)
+		p.maxExecs = calculateMaxExecsJitter(maxExecs, maxExecsPercentJitter, p.log)
 	}
 }
 
-func calculateMaxExecsJitter(maxExecs, jitter uint64) uint64 {
+func calculateMaxExecsJitter(maxExecs, jitter uint64, log *zap.Logger) uint64 {
 	if maxExecs == 0 {
 		return 0
 	}
@@ -33,6 +33,7 @@ func calculateMaxExecsJitter(maxExecs, jitter uint64) uint64 {
 	random, err := rand.Int(rand.Reader, big.NewInt(int64(jitter)))
 
 	if err != nil {
+		log.Debug("jitter calculation error", zap.Error(err), zap.Uint64("jitter", jitter))
 		return maxExecs
 	}
 
