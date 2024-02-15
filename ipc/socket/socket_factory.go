@@ -189,24 +189,6 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (
 	}
 }
 
-func (f *Factory) findRelay(w *worker.Process) (*socket.Relay, error) { //nolint:unused
-	const op = errors.Op("factory_find_relay")
-	// poll every 1ms for the relay
-	pollDone := time.NewTimer(f.tout)
-	for {
-		select {
-		case <-pollDone.C:
-			return nil, errors.E(op, errors.Str("relay timeout"))
-		default:
-			tmp, ok := f.relays.Load(w.Pid())
-			if !ok {
-				continue
-			}
-			return tmp.(*socket.Relay), nil
-		}
-	}
-}
-
 // chan to store relay associated with specific pid
 func (f *Factory) attachRelayToPid(pid int64, relay relay.Relay) {
 	f.relays.Store(pid, relay)

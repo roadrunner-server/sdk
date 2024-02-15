@@ -1,7 +1,8 @@
 package worker
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 
 	"go.uber.org/zap"
 )
@@ -29,7 +30,13 @@ func calculateMaxExecsJitter(maxExecs, jitter uint64) uint64 {
 		return 0
 	}
 
-	percent := rand.Intn(int(jitter)) //nolint:gosec
+	random, err := rand.Int(rand.Reader, big.NewInt(int64(jitter)))
+
+	if err != nil {
+		return maxExecs
+	}
+
+	percent := random.Uint64()
 
 	if percent == 0 {
 		return maxExecs
