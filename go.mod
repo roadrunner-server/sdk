@@ -1,8 +1,6 @@
 module github.com/roadrunner-server/sdk/v4
 
-go 1.22
-
-toolchain go1.22.0
+go 1.22.0
 
 require (
 	github.com/goccy/go-json v0.10.2
@@ -13,7 +11,7 @@ require (
 	github.com/roadrunner-server/tcplisten v1.4.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/zap v1.26.0
+	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.6.0
 )
 
@@ -23,8 +21,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_model v0.5.0 // indirect
-	github.com/prometheus/common v0.46.0 // indirect
+	github.com/prometheus/client_model v0.6.0 // indirect
+	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.13 // indirect
 	github.com/tklauser/numcpus v0.7.0 // indirect
