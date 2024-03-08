@@ -237,6 +237,9 @@ func Test_Tcp_Echo2(t *testing.T) {
 }
 
 func Test_Unix_Start2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -261,6 +264,9 @@ func Test_Unix_Start2(t *testing.T) {
 }
 
 func Test_Unix_Failboot2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -279,6 +285,9 @@ func Test_Unix_Failboot2(t *testing.T) {
 }
 
 func Test_Unix_Timeout2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -299,6 +308,9 @@ func Test_Unix_Timeout2(t *testing.T) {
 }
 
 func Test_Unix_Invalid2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -317,6 +329,9 @@ func Test_Unix_Invalid2(t *testing.T) {
 }
 
 func Test_Unix_Broken2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -353,6 +368,9 @@ func Test_Unix_Broken2(t *testing.T) {
 }
 
 func Test_Unix_Echo2(t *testing.T) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(t, err)
 	defer func() {
@@ -390,6 +408,9 @@ func Test_Unix_Echo2(t *testing.T) {
 }
 
 func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(b, err)
 	defer func() {
@@ -417,6 +438,9 @@ func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 }
 
 func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
+	defer func() {
+		_ = syscall.Unlink("sock.unix")
+	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	assert.NoError(b, err)
 	defer func() {
