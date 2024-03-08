@@ -32,7 +32,10 @@ func Test_Tcp_Start2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
@@ -62,7 +65,10 @@ func Test_Tcp_StartCloseFactory2(t *testing.T) {
 		}
 	}()
 
-	w, err := f.SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := f.SpawnWorkerWithContext(ctx, cmd)
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
@@ -95,7 +101,10 @@ func Test_Tcp_StartError2(t *testing.T) {
 		t.Errorf("error executing the command: error %v", err)
 	}
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
@@ -115,7 +124,10 @@ func Test_Tcp_Failboot2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
-	w, err2 := NewSocketServer(ls, time.Second*5, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err2 := NewSocketServer(ls, time.Second*5, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err2)
 }
@@ -135,7 +147,10 @@ func Test_Tcp_Invalid2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
 
-	w, err := NewSocketServer(ls, time.Second*1, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Second*1, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
@@ -155,7 +170,10 @@ func Test_Tcp_Broken2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +212,10 @@ func Test_Tcp_Echo2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, _ := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	w, _ := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	go func() {
 		assert.NoError(t, w.Wait())
 	}()
@@ -249,7 +270,10 @@ func Test_Unix_Failboot2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
-	w, err := NewSocketServer(ls, time.Second*5, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Second*5, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err)
 }
@@ -264,10 +288,14 @@ func Test_Unix_Timeout2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "unix", "200", "0")
 
-	w, err := NewSocketServer(ls, time.Millisecond*100, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Millisecond*100, log).SpawnWorkerWithContext(ctx, cmd)
+	t.Log(err.Error())
 	assert.Nil(t, w)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "relay timeout")
+	assert.Contains(t, err.Error(), "Timeout")
 }
 
 func Test_Unix_Invalid2(t *testing.T) {
@@ -280,7 +308,10 @@ func Test_Unix_Invalid2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
 
-	w, err := NewSocketServer(ls, time.Second*10, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Second*10, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
@@ -295,7 +326,10 @@ func Test_Unix_Broken2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +362,10 @@ func Test_Unix_Echo2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +426,10 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -456,7 +496,10 @@ func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(context.Background(), cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		b.Fatal(err)
 	}

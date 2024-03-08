@@ -80,7 +80,7 @@ func Test_Tcp_StartCloseFactory(t *testing.T) {
 
 func Test_Tcp_StartError(t *testing.T) {
 	time.Sleep(time.Millisecond * 10) // to ensure free socket
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
 	ls, err := net.Listen("tcp", "127.0.0.1:9007")
