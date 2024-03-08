@@ -24,20 +24,16 @@ import (
 type Factory struct {
 	// listens for incoming connections from underlying processes
 	ls net.Listener
-	// relay connection timeout
-	tout time.Duration
 	// sockets which are waiting for process association
 	relays sync.Map
 	log    *zap.Logger
 }
 
 // NewSocketServer returns Factory attached to a given socket listener.
-// tout specifies for how long factory should serve for incoming relay connection
-func NewSocketServer(ls net.Listener, tout time.Duration, log *zap.Logger) *Factory {
+func NewSocketServer(ls net.Listener, log *zap.Logger) *Factory {
 	f := &Factory{
-		ls:   ls,
-		tout: tout,
-		log:  log,
+		ls:  ls,
+		log: log,
 	}
 
 	// Be careful
@@ -171,7 +167,7 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, errors.E(errors.Op("relay"), errors.TimeOut)
+			return nil, errors.E(errors.Op("findRelayWithContext"), errors.TimeOut)
 		case <-ticker.C:
 			// check for the process exists
 			_, err := process.NewProcess(int32(w.Pid()))
