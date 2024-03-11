@@ -401,9 +401,7 @@ func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 	if assert.NoError(b, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
@@ -433,9 +431,7 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 	if assert.NoError(b, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
@@ -469,9 +465,7 @@ func Benchmark_Unix_SpawnWorker_Stop2(b *testing.B) {
 	if err == nil {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
@@ -497,9 +491,7 @@ func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
 	if err == nil {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
