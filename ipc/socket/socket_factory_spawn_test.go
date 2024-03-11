@@ -5,7 +5,6 @@ import (
 	"net"
 	"os/exec"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,9 +21,7 @@ func Test_Tcp_Start2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -87,9 +84,7 @@ func Test_Tcp_StartError2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -137,9 +132,7 @@ func Test_Tcp_Invalid2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -160,9 +153,7 @@ func Test_Tcp_Broken2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -202,9 +193,7 @@ func Test_Tcp_Echo2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -237,16 +226,11 @@ func Test_Tcp_Echo2(t *testing.T) {
 }
 
 func Test_Unix_Start2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -269,16 +253,11 @@ func Test_Unix_Start2(t *testing.T) {
 }
 
 func Test_Unix_Failboot2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -295,16 +274,11 @@ func Test_Unix_Failboot2(t *testing.T) {
 }
 
 func Test_Unix_Timeout2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -323,16 +297,11 @@ func Test_Unix_Timeout2(t *testing.T) {
 }
 
 func Test_Unix_Invalid2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -349,16 +318,11 @@ func Test_Unix_Invalid2(t *testing.T) {
 }
 
 func Test_Unix_Broken2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -393,16 +357,11 @@ func Test_Unix_Broken2(t *testing.T) {
 }
 
 func Test_Unix_Echo2(t *testing.T) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -438,9 +397,6 @@ func Test_Unix_Echo2(t *testing.T) {
 }
 
 func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(b, err) {
 		defer func() {
@@ -473,9 +429,6 @@ func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 }
 
 func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if assert.NoError(b, err) {
 		defer func() {
@@ -512,9 +465,6 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 }
 
 func Benchmark_Unix_SpawnWorker_Stop2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if err == nil {
 		defer func() {
@@ -543,9 +493,6 @@ func Benchmark_Unix_SpawnWorker_Stop2(b *testing.B) {
 }
 
 func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if err == nil {
 		defer func() {
