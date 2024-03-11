@@ -241,11 +241,16 @@ func Test_Unix_Start2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
@@ -268,11 +273,16 @@ func Test_Unix_Failboot2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
@@ -289,11 +299,16 @@ func Test_Unix_Timeout2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "unix", "200", "0")
 
@@ -312,11 +327,16 @@ func Test_Unix_Invalid2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
 
@@ -333,11 +353,16 @@ func Test_Unix_Broken2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		errC := ls.Close()
-		assert.NoError(t, errC)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "unix")
 
@@ -372,11 +397,16 @@ func Test_Unix_Echo2(t *testing.T) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				t.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
@@ -412,11 +442,16 @@ func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(b, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(b, err)
-	}()
+	if assert.NoError(b, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				b.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		b.Skip("socket is busy")
+	}
 
 	f := NewSocketServer(ls, log)
 	for n := 0; n < b.N; n++ {
@@ -442,11 +477,16 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 		_ = syscall.Unlink("sock.unix")
 	}()
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(b, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(b, err)
-	}()
+	if assert.NoError(b, err) {
+		defer func() {
+			errC := ls.Close()
+			if errC != nil {
+				b.Errorf("error closing the listener: error %v", err)
+			}
+		}()
+	} else {
+		b.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
