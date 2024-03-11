@@ -316,7 +316,7 @@ func Test_Unix_Timeout2(t *testing.T) {
 	defer cancel()
 
 	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
-	t.Log(err.Error())
+
 	assert.Nil(t, w)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Timeout")
