@@ -312,7 +312,7 @@ func Test_Unix_Timeout2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "unix", "200", "0")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
 	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
