@@ -14,22 +14,20 @@ import (
 
 // Factory is responsible for wrapping given command into tasks WorkerProcess.
 type Factory interface {
-	// SpawnWorkerWithTimeout creates a new WorkerProcess process based on given command with context.
+	// SpawnWorkerWithContext creates a new WorkerProcess process based on given command with context.
 	// Process must not be started.
-	SpawnWorkerWithTimeout(context.Context, *exec.Cmd) (*worker.Process, error)
-	// SpawnWorker creates a new WorkerProcess process based on given command.
-	// Process must not be started.
-	SpawnWorker(*exec.Cmd) (*worker.Process, error)
+	SpawnWorkerWithContext(context.Context, *exec.Cmd, ...worker.Options) (*worker.Process, error)
 	// Close the factory and underlying connections.
 	Close() error
 }
 
 // NewPoolAllocator initializes allocator of the workers
-func NewPoolAllocator(ctx context.Context, timeout time.Duration, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
+func NewPoolAllocator(ctx context.Context, timeout time.Duration, maxExecs uint64, factory Factory, cmd Command, command []string, log *zap.Logger) func() (*worker.Process, error) {
 	return func() (*worker.Process, error) {
 		ctxT, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		w, err := factory.SpawnWorkerWithTimeout(ctxT, cmd(command))
+
+		w, err := factory.SpawnWorkerWithContext(ctxT, cmd(command), worker.WithLog(log), worker.WithMaxExecs(maxExecs))
 		if err != nil {
 			// context deadline
 			if errors.Is(errors.TimeOut, err) {

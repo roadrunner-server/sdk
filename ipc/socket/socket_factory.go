@@ -24,20 +24,16 @@ import (
 type Factory struct {
 	// listens for incoming connections from underlying processes
 	ls net.Listener
-	// relay connection timeout
-	tout time.Duration
 	// sockets which are waiting for process association
 	relays sync.Map
 	log    *zap.Logger
 }
 
 // NewSocketServer returns Factory attached to a given socket listener.
-// tout specifies for how long factory should serve for incoming relay connection
-func NewSocketServer(ls net.Listener, tout time.Duration, log *zap.Logger) *Factory {
+func NewSocketServer(ls net.Listener, log *zap.Logger) *Factory {
 	f := &Factory{
-		ls:   ls,
-		tout: tout,
-		log:  log,
+		ls:  ls,
+		log: log,
 	}
 
 	// Be careful
@@ -87,11 +83,11 @@ type socketSpawn struct {
 	err error
 }
 
-// SpawnWorkerWithTimeout creates Process and connects it to appropriate relay or return an error
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+// SpawnWorkerWithContext Creates Process and connects it to appropriate relay or return an error
+func (f *Factory) SpawnWorkerWithContext(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
 	c := make(chan socketSpawn)
 	go func() {
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		w, err := worker.InitBaseWorker(cmd, options...)
 		if err != nil {
 			select {
 			case c <- socketSpawn{
@@ -160,37 +156,6 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 	}
 }
 
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
-	if err != nil {
-		return nil, err
-	}
-
-	err = w.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	rl, err := f.findRelay(w)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	w.AttachRelay(rl)
-
-	// errors bundle
-	_, err = internal.Pid(rl)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	w.State().Transition(fsm.StateReady)
-
-	return w, nil
-}
-
 // Close socket factory and underlying socket connection.
 func (f *Factory) Close() error {
 	return f.ls.Close()
@@ -202,7 +167,7 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, errors.E(errors.TimeOut)
+			return nil, errors.E(errors.Op("findRelayWithContext"), errors.TimeOut)
 		case <-ticker.C:
 			// check for the process exists
 			_, err := process.NewProcess(int32(w.Pid()))
@@ -216,24 +181,6 @@ func (f *Factory) findRelayWithContext(ctx context.Context, w *worker.Process) (
 			}
 
 			return rl.(*socket.Relay), nil
-		}
-	}
-}
-
-func (f *Factory) findRelay(w *worker.Process) (*socket.Relay, error) {
-	const op = errors.Op("factory_find_relay")
-	// poll every 1ms for the relay
-	pollDone := time.NewTimer(f.tout)
-	for {
-		select {
-		case <-pollDone.C:
-			return nil, errors.E(op, errors.Str("relay timeout"))
-		default:
-			tmp, ok := f.relays.Load(w.Pid())
-			if !ok {
-				continue
-			}
-			return tmp.(*socket.Relay), nil
 		}
 	}
 }

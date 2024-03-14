@@ -5,7 +5,6 @@ import (
 	"net"
 	"os/exec"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,9 +21,7 @@ func Test_Tcp_Start2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -32,7 +29,10 @@ func Test_Tcp_Start2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
@@ -54,7 +54,7 @@ func Test_Tcp_StartCloseFactory2(t *testing.T) {
 	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
-	f := NewSocketServer(ls, time.Minute, log)
+	f := NewSocketServer(ls, log)
 	defer func() {
 		err = ls.Close()
 		if err != nil {
@@ -62,7 +62,10 @@ func Test_Tcp_StartCloseFactory2(t *testing.T) {
 		}
 	}()
 
-	w, err := f.SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err := f.SpawnWorkerWithContext(ctx, cmd)
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
@@ -81,9 +84,7 @@ func Test_Tcp_StartError2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -95,7 +96,10 @@ func Test_Tcp_StartError2(t *testing.T) {
 		t.Errorf("error executing the command: error %v", err)
 	}
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
@@ -115,7 +119,10 @@ func Test_Tcp_Failboot2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
-	w, err2 := NewSocketServer(ls, time.Second*5, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	w, err2 := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err2)
 }
@@ -125,9 +132,7 @@ func Test_Tcp_Invalid2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -135,7 +140,10 @@ func Test_Tcp_Invalid2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
 
-	w, err := NewSocketServer(ls, time.Second*1, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
@@ -145,9 +153,7 @@ func Test_Tcp_Broken2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -155,7 +161,10 @@ func Test_Tcp_Broken2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,9 +193,7 @@ func Test_Tcp_Echo2(t *testing.T) {
 	if assert.NoError(t, err) {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				t.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(t, errC)
 		}()
 	} else {
 		t.Skip("socket is busy")
@@ -194,7 +201,10 @@ func Test_Tcp_Echo2(t *testing.T) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, _ := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	w, _ := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	go func() {
 		assert.NoError(t, w.Wait())
 	}()
@@ -217,15 +227,18 @@ func Test_Tcp_Echo2(t *testing.T) {
 
 func Test_Unix_Start2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(context.Background(), cmd)
 	assert.NoError(t, err)
 	assert.NotNil(t, w)
 
@@ -241,61 +254,86 @@ func Test_Unix_Start2(t *testing.T) {
 
 func Test_Unix_Failboot2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/failboot.php")
 
-	w, err := NewSocketServer(ls, time.Second*5, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Nil(t, w)
 	assert.Error(t, err)
 }
 
 func Test_Unix_Timeout2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/slow-client.php", "echo", "unix", "200", "0")
 
-	w, err := NewSocketServer(ls, time.Millisecond*100, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
+
 	assert.Nil(t, w)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "relay timeout")
+	assert.Contains(t, err.Error(), "Timeout")
 }
 
 func Test_Unix_Invalid2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/invalid.php")
 
-	w, err := NewSocketServer(ls, time.Second*10, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	assert.Error(t, err)
 	assert.Nil(t, w)
 }
 
 func Test_Unix_Broken2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		errC := ls.Close()
-		assert.NoError(t, errC)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "broken", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,15 +358,21 @@ func Test_Unix_Broken2(t *testing.T) {
 
 func Test_Unix_Echo2(t *testing.T) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(t, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(t, err)
-	}()
+	if assert.NoError(t, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(t, errC)
+		}()
+	} else {
+		t.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,17 +398,20 @@ func Test_Unix_Echo2(t *testing.T) {
 
 func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(b, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(b, err)
-	}()
+	if assert.NoError(b, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(b, errC)
+		}()
+	} else {
+		b.Skip("socket is busy")
+	}
 
-	f := NewSocketServer(ls, time.Minute, log)
+	f := NewSocketServer(ls, log)
 	for n := 0; n < b.N; n++ {
 		cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-		w, err := f.SpawnWorker(cmd)
+		w, err := f.SpawnWorkerWithContext(context.Background(), cmd)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -381,15 +428,21 @@ func Benchmark_Tcp_SpawnWorker_Stop2(b *testing.B) {
 
 func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 	ls, err := net.Listen("unix", "sock.unix")
-	assert.NoError(b, err)
-	defer func() {
-		err = ls.Close()
-		assert.NoError(b, err)
-	}()
+	if assert.NoError(b, err) {
+		defer func() {
+			errC := ls.Close()
+			require.NoError(b, errC)
+		}()
+	} else {
+		b.Skip("socket is busy")
+	}
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "tcp")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -408,26 +461,21 @@ func Benchmark_Tcp_Worker_ExecEcho2(b *testing.B) {
 }
 
 func Benchmark_Unix_SpawnWorker_Stop2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if err == nil {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
 	}
 
-	f := NewSocketServer(ls, time.Minute, log)
+	f := NewSocketServer(ls, log)
 	for n := 0; n < b.N; n++ {
 		cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-		w, err := f.SpawnWorker(cmd)
+		w, err := f.SpawnWorkerWithContext(context.Background(), cmd)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -439,16 +487,11 @@ func Benchmark_Unix_SpawnWorker_Stop2(b *testing.B) {
 }
 
 func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
-	defer func() {
-		_ = syscall.Unlink("sock.unix")
-	}()
 	ls, err := net.Listen("unix", "sock.unix")
 	if err == nil {
 		defer func() {
 			errC := ls.Close()
-			if errC != nil {
-				b.Errorf("error closing the listener: error %v", err)
-			}
+			require.NoError(b, errC)
 		}()
 	} else {
 		b.Skip("socket is busy")
@@ -456,7 +499,10 @@ func Benchmark_Unix_Worker_ExecEcho2(b *testing.B) {
 
 	cmd := exec.Command("php", "../../tests/client.php", "echo", "unix")
 
-	w, err := NewSocketServer(ls, time.Minute, log).SpawnWorker(cmd)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	w, err := NewSocketServer(ls, log).SpawnWorkerWithContext(ctx, cmd)
 	if err != nil {
 		b.Fatal(err)
 	}

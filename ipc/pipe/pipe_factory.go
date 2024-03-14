@@ -31,12 +31,12 @@ type sr struct {
 	err error
 }
 
-// SpawnWorkerWithTimeout creates new Process and connects it to goridge relay,
+// SpawnWorkerWithContext Creates new Process and connects it to goridge relay,
 // method Wait() must be handled on level above.
-func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*worker.Process, error) {
+func (f *Factory) SpawnWorkerWithContext(ctx context.Context, cmd *exec.Cmd, options ...worker.Options) (*worker.Process, error) {
 	spCh := make(chan sr)
 	go func() {
-		w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
+		w, err := worker.InitBaseWorker(cmd, options...)
 		if err != nil {
 			select {
 			case spCh <- sr{
@@ -138,44 +138,6 @@ func (f *Factory) SpawnWorkerWithTimeout(ctx context.Context, cmd *exec.Cmd) (*w
 		}
 		return res.w, nil
 	}
-}
-
-func (f *Factory) SpawnWorker(cmd *exec.Cmd) (*worker.Process, error) {
-	w, err := worker.InitBaseWorker(cmd, worker.WithLog(f.log))
-	if err != nil {
-		return nil, err
-	}
-
-	in, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	// Init new PIPE relay
-	relay := pipe.NewPipeRelay(in, out)
-	w.AttachRelay(relay)
-
-	// Start the worker
-	err = w.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	// errors bundle
-	_, err = internal.Pid(relay)
-	if err != nil {
-		_ = w.Kill()
-		return nil, err
-	}
-
-	// everything ok, set ready state
-	w.State().Transition(fsm.StateReady)
-	return w, nil
 }
 
 // Close the factory.
